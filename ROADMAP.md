@@ -37,7 +37,7 @@ That has to stop before anyone invests in writing one.
 - [x] A project-scoped latch, so `terse` in one repo does not follow you into
       every other session.
 - [x] Session-scoped latches.
-- [ ] One-shot latches. `::terse!` for exactly this turn.
+- [x] One-shot latches. `::terse!` for exactly this turn.
 - [x] Precedence, stated once and enforced everywhere: session, then project,
       then global.
 
@@ -47,7 +47,7 @@ Injection is invisible by design, which makes failure invisible too.
 
 - [x] `::status` — what is latched, where it came from, which scope won, what
       it costs in characters and estimated tokens, and how long it has been on.
-- [ ] A bounded latch history, so "what did I have on yesterday" is answerable.
+- [x] A bounded latch history, so "what did I have on yesterday" is answerable.
 - [ ] Drift instrumentation: how many turns since the last full re-injection.
 
 ## v0.5.0 — a plugin, not a script folder  (mostly shipped in v0.2.0)

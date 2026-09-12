@@ -61,6 +61,7 @@ Type a directive as the first thing in a message.
 | `::eli5+no-preamble` | Latch a profile with modifiers stacked on |
 | `::01+02` | Ids work too |
 | `::terse fix the parser` | Latch it **and** do the task, in one message |
+| `::terse! fix the parser` | Apply it to this message only. Latches nothing. |
 | `::terse @project` | Only in this repository |
 | `::terse @session` | Only in this conversation |
 | `::?` | List every profile and modifier, and where they come from |

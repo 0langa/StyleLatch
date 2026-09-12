@@ -22,6 +22,7 @@ command to run.
 | "always write like this" | A latch, not a one-off. `::<style>` |
 | "only in this repo" | `::<style> @project` |
 | "for this job only" | `::<style> @session` |
+| "just answer this one in plain English" | `::<style>! <the request>` — one message, no latch |
 | "make me a style that…" | Author a style file. See below. |
 | "it stopped working", "you forgot again" | `::test`, then `::status` |
 
@@ -37,6 +38,7 @@ the switch is theirs, and a directive only fires when it opens *their* message.
 ::terse @session           only in this conversation
 ::terse @global            everywhere, which is also the default
 ::terse fix the parser     latch it and do the task in one message
+::terse! fix the parser    apply it to this message only, latch nothing
 ::off                      stop everything
 ::off @project             drop one scope
 ::?                        every style, and where they come from

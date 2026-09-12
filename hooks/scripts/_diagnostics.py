@@ -313,6 +313,16 @@ def status(payload: dict[str, Any] | None = None) -> str:
     if canary_path().is_file():
         lines.append("  canary       armed. ::test canary off when you are done")
 
+    past = _style.history()[:5]
+    if past:
+        lines += ["", "  recently"]
+        for entry in past:
+            verb = "latched" if entry.get("action") == "latch" else "cleared"
+            name = "+".join([str(entry.get("profile", "?")), *(entry.get("modifiers") or [])])
+            lines.append(
+                f"    {_ago(entry.get('at', 0)):>8}  {verb} {name} ({entry.get('scope', '?')})"
+            )
+
     lines += [
         "",
         "  The most specific scope that is set wins: session, then project, then global.",
