@@ -80,6 +80,23 @@ fix is shorter than the explanation of the problem.
 Never open with praise. Never close with an offer of more help.
 ```
 
+### Make it measurable where you can
+
+A style may declare assertions that are checked against each reply. Breaking
+one puts a correction in the next turn's reminder, naming the rule.
+
+```yaml
+checks: max_sentence_words=25; forbid=let me know if; no_bullets
+```
+
+Available: `max_sentence_words=N`, `max_reply_lines=N`, `max_reply_chars=N`,
+`max_paragraphs=N`, `forbid=<text>`, `forbid_opening=<text>`, `require=<text>`,
+`no_headings`, `no_bullets`.
+
+Check the rule you expect to **decay**, not the one you care most about — they
+are rarely the same. Do not check taste: a check that fires on a reply that was
+actually fine trains the user to ignore corrections, and then it is worthless.
+
 ### The three rules that decide whether it works
 
 **1. Write rules, not a mood.** A model can obey "two sentences maximum". It
@@ -106,7 +123,8 @@ Then `::<name>` to latch it.
 
 Work down this list; each step rules out more than the last.
 
-1. `::status` — is anything latched, and did a more specific scope win?
+1. `::status` — is anything latched, did a more specific scope win, and how
+   many recent replies actually held?
 2. `::test` — do the files parse, is the state directory writable, and is the
    plugin running a live checkout or an **installed snapshot**? A snapshot is
    the usual answer: the repository was edited, the provider is still running

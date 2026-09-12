@@ -11,7 +11,7 @@
       "source": "./",
       "displayName": "StyleLatch",
       "description": "Switchable output styles for Codex and Claude Code, switched from the chat with ::",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "license": "MIT",
       "homepage": "https://github.com/0langa/StyleLatch",
       "repository": "https://github.com/0langa/StyleLatch",

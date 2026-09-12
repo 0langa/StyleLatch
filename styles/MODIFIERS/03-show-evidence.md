@@ -2,6 +2,7 @@
 id: "03"
 name: show-evidence
 nudge: Show the command and its real output. Never claim green without proof.
+checks: forbid=should work; forbid=should be fine; forbid=presumably passes
 ---
 
 Never claim something works, passes, or is fixed without showing the evidence.

@@ -14,6 +14,7 @@ and the cache disagree, the cache is older — re-check the source it names.
 | `SessionStart` hook | yes | yes |
 | `SessionStart` matchers | `startup`, `resume`, `clear`, `compact`, `fork` | fires on session start |
 | `UserPromptSubmit` hook | yes | yes |
+| `Stop` hook | yes | yes |
 | `hookSpecificOutput.additionalContext` | yes | yes, added as developer context |
 | `hooks/hooks.json` auto-discovered at plugin root | yes | yes |
 | Skills at `skills/<name>/SKILL.md` auto-discovered | yes | yes |
@@ -50,6 +51,7 @@ fails the plugin load with *Duplicate hooks file*. There is a test for this.
 | 1 | nothing — a line in the user's own instructions file | always works |
 | 2 | `SessionStart` + `additionalContext` | no style at session start; layer 3 still re-states it every turn |
 | 3 | `UserPromptSubmit` + a readable prompt field | no anti-drift nudge; layer 2 still delivers at session start |
+| 4 | `Stop` + a readable `transcript_path` | no adherence measurement and no corrections; every other layer is unaffected |
 
 The layers degrade independently, which is the point of having three.
 
@@ -69,6 +71,7 @@ Scopes need two more fields, both optional:
 |---|---|---|
 | `cwd` | finding the project root | project scope is refused, with a message saying why |
 | `session_id` | the session latch, and retiring debug mode | session scope is refused |
+| `transcript_path` | reading the finished reply back, and `::test verify` | nothing is measured, and nothing is recorded — a clean turn would be a lie |
 
 Refusing is deliberate. A latch stored under an empty key could never be read
 back, and the user would be told "latched" and then watch nothing happen.

@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import _adherence
 import _style
 
 # Debug mode is deliberately hard to leave running. Whichever of these limits
@@ -107,6 +108,11 @@ def _check_styles() -> tuple[bool, str]:
             problems.append(f"profile '{entry['name']}' has no nudge")
         if not entry["body"].strip():
             problems.append(f"profile '{entry['name']}' has an empty body")
+    for entry in [*profiles, *modifiers]:
+        # A check that cannot be parsed is silently never enforced, which is
+        # the worst outcome: the style looks measured and is not.
+        _rules, bad = _adherence.parse_checks(entry["checks"])
+        problems += [f"'{entry['name']}' checks: {problem}" for problem in bad]
     for group, entries in (("profile", profiles), ("modifier", modifiers)):
         ids = [entry["id"] for entry in entries]
         for dup in sorted({i for i in ids if ids.count(i) > 1}):
@@ -168,7 +174,7 @@ def _check_hooks() -> tuple[bool, str]:
     here = Path(__file__).resolve().parent
     missing = [
         name
-        for name in ("session_start.py", "user_prompt_submit.py", "_style.py")
+        for name in ("session_start.py", "user_prompt_submit.py", "stop.py", "_style.py")
         if not (here / name).is_file()
     ]
     if missing:
@@ -183,7 +189,7 @@ def _check_hooks() -> tuple[bool, str]:
         return False, f"hooks.json unreadable: {exc}"
 
     events = sorted(registered)
-    if not {"SessionStart", "UserPromptSubmit"}.issubset(events):
+    if not {"SessionStart", "UserPromptSubmit", "Stop"}.issubset(events):
         return False, f"registered: {', '.join(events) or 'none'}"
     return True, f"registered: {', '.join(events)}"
 
@@ -312,6 +318,10 @@ def status(payload: dict[str, Any] | None = None) -> str:
         )
     if canary_path().is_file():
         lines.append("  canary       armed. ::test canary off when you are done")
+
+    adherence = _adherence.summary()
+    if adherence:
+        lines.append(adherence)
 
     past = _style.history()[:5]
     if past:

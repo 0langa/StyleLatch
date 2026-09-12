@@ -26,7 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import _diagnostics  # imported after the sys.path line above, on purpose
+import _adherence  # imported after the sys.path line above, on purpose
+import _diagnostics
 import _directives
 import _style
 
@@ -64,6 +65,11 @@ def build(payload: dict) -> list[str]:
         pieces.append(_directives.apply(directive[0], directive[1], payload))
     elif _style.is_active():
         pieces.append(_style.nudge_text())
+        # A reminder of the whole style is a weak signal. "You wrote a 34-word
+        # sentence, the limit is 25" is a strong one, for fewer tokens.
+        correction = _adherence.take_correction()
+        if correction:
+            pieces.append(correction)
 
     if not asking_about_stylelatch:
         debug = _diagnostics.tick_debug(payload)

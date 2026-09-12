@@ -123,7 +123,7 @@ class TestState(StyleLatchTestCase):
 
 class TestHooks(StyleLatchTestCase):
     def test_hooks_are_silent_when_nothing_is_set(self) -> None:
-        for script in ("session_start.py", "user_prompt_submit.py"):
+        for script in ("session_start.py", "user_prompt_submit.py", "stop.py"):
             self.assertEqual(self.hook(script), {"continue": True}, script)
 
     def test_session_start_injects_the_full_document(self) -> None:
@@ -150,7 +150,7 @@ class TestHooks(StyleLatchTestCase):
 
         env = dict(os.environ)
         env["STYLELATCH_ROOT"] = str(ROOT)
-        for script in ("session_start.py", "user_prompt_submit.py"):
+        for script in ("session_start.py", "user_prompt_submit.py", "stop.py"):
             proc = subprocess.run(
                 [sys.executable, "-S", str(ROOT / "hooks" / "scripts" / script)],
                 input="not json at all {[",
@@ -201,10 +201,11 @@ class TestManifests(StyleLatchTestCase):
         entry = next(p for p in market["plugins"] if p["name"] == plugin["name"])
         self.assertEqual(entry["version"], plugin["version"])
 
-    def test_hooks_json_registers_both_layers(self) -> None:
+    def test_hooks_json_registers_every_layer(self) -> None:
         hooks = self._load("hooks/hooks.json")["hooks"]
         self.assertIn("SessionStart", hooks)
         self.assertIn("UserPromptSubmit", hooks)
+        self.assertIn("Stop", hooks)
         matcher = hooks["SessionStart"][0]["matcher"]
         # fork and clear are easy to miss and are exactly where a style dies.
         for event in ("startup", "resume", "clear", "compact", "fork"):

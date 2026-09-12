@@ -21,11 +21,20 @@ ROOT = Path(__file__).resolve().parents[1]
 HOOKS = ROOT / "hooks" / "scripts"
 sys.path.insert(0, str(HOOKS))
 
-import _diagnostics  # noqa: E402  -- must follow the sys.path line above
+import _adherence  # noqa: E402  -- must follow the sys.path line above
+import _diagnostics  # noqa: E402
 import _directives  # noqa: E402
 import _style  # noqa: E402
 
-__all__ = ["HOOKS", "ROOT", "StyleLatchTestCase", "_diagnostics", "_directives", "_style"]
+__all__ = [
+    "HOOKS",
+    "ROOT",
+    "StyleLatchTestCase",
+    "_adherence",
+    "_diagnostics",
+    "_directives",
+    "_style",
+]
 
 
 class StyleLatchTestCase(unittest.TestCase):

@@ -23,7 +23,7 @@ select = [
 "tests/*" = ["E501"]
 
 [lint.isort]
-known-first-party = ["_style", "_directives", "_diagnostics", "_support"]
+known-first-party = ["_style", "_directives", "_diagnostics", "_adherence", "_support"]
 
 [format]
 quote-style = "double"

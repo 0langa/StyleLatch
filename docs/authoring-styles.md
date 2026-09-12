@@ -44,6 +44,7 @@ Never open with praise. Never close with an offer of more help.
 | `id` | Short handle for `::50`. Unique within its source. Falls back to the filename prefix. |
 | `name` | What you type: `::review-voice`. Falls back to the rest of the filename. |
 | `nudge` | Required on a profile. Injected every turn. Hard cap 300 characters. |
+| `checks` | Optional. Machine-checkable assertions, measured against each reply. |
 
 The body is injected verbatim. Write it as rules addressed to the model.
 
@@ -103,6 +104,64 @@ See [SECURITY.md](../SECURITY.md).
 calls, and it says in its own text that it never suppresses a required
 confirmation, a hard blocker, or an unauthorised destructive action. A style
 that removes output has to name what it will still say.
+
+## Making a rule checkable
+
+A style can declare assertions that are measured against the reply after it is
+written. Breaking one puts a correction in the *next* turn's nudge, naming the
+specific rule rather than restating the whole style.
+
+```yaml
+checks: max_sentence_words=25; forbid=let me know if; forbid_opening=Great question
+```
+
+One line, semicolon-separated, `name` or `name=value`.
+
+| Rule | Catches |
+|---|---|
+| `max_sentence_words=N` | the longest prose sentence |
+| `max_reply_lines=N` | a reply that sprawled |
+| `max_reply_chars=N` | the same, by size |
+| `max_paragraphs=N` | a two-line answer that became an essay |
+| `forbid=<text>` | a phrase anywhere, case-insensitive |
+| `forbid_opening=<text>` | a phrase in the first 140 characters only |
+| `require=<text>` | something that had to be said and was not |
+| `no_headings` | markdown headings in a reply that should be prose |
+| `no_bullets` | a bullet list where sentences were asked for |
+
+Modifiers can add checks too, and they accumulate: `::terse+show-evidence`
+enforces both sets.
+
+### Choosing what to check
+
+Check the rule you expect to **decay**, not the rule you care most about. They
+are rarely the same. `terse` cares most about leading with the answer, which no
+regular expression can see — so it checks the four phrases that creep back
+instead:
+
+```yaml
+checks: max_sentence_words=25; forbid=let me know if; forbid=hope that helps;
+        forbid=feel free to; forbid=anything else
+```
+
+Two things not to do:
+
+- **Do not check what code will trip.** Fenced and inline code is stripped
+  before prose rules run, so `max_sentence_words` will not fire on a shell
+  command — but `forbid=error` still will, if the word appears in prose.
+- **Do not check taste.** A check that fires on a reply that was actually fine
+  trains you to ignore the correction, and then the mechanism is worthless.
+
+`::status` reports how many of the recent replies held, and what broke:
+
+```
+  checks       5 declared by the latched style
+  adherence    7/9 of the last replies held
+               broke: wrote "let me know if"; a 31-word sentence (max 25)
+```
+
+`::test` fails on a `checks` line it cannot parse. A check that is silently
+never enforced is the worst outcome: the style looks measured and is not.
 
 ## Modifiers
 
