@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -317,8 +318,92 @@ def compose(profile_key: str, modifier_keys: list[str]) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
+# scopes
+# --------------------------------------------------------------------------
+#
+# A latch belongs to exactly one of three scopes, and the most specific one
+# that is set wins:
+#
+#   session    this conversation only          ::terse @session
+#   project    this repository, any session    ::terse @project
+#   global     everywhere                      ::terse
+#
+# Global stays the default because it is what someone means by "I write like
+# this". The other two exist because a voice that suits one repository is
+# usually wrong for the next one, and because a long autonomous job wants a
+# style that dies with it.
+
+SCOPES = ("session", "project", "global")
+STATE_VERSION = 2
+
+# How many remembered latches to keep per scope. Old entries are pruned oldest
+# first: a state file that grows without bound is a slow leak, and nobody is
+# coming back to a session id from three months ago.
+MAX_REMEMBERED = 40
+
+_session_hint: str = ""
+
+
+def set_session_hint(session_id: str | None) -> None:
+    global _session_hint
+    _session_hint = (session_id or "").strip()
+
+
+def session_key() -> str:
+    return _session_hint
+
+
+def project_key() -> str:
+    """A stable, comparable key for the current project.
+
+    Normalised for case, because Windows paths are case-insensitive and a
+    latch set from one spelling has to be found again from another.
+    """
+    root = project_root()
+    return os.path.normcase(str(root)) if root is not None else ""
+
+
+def scope_key(scope: str) -> str:
+    if scope == "session":
+        return session_key()
+    if scope == "project":
+        return project_key()
+    return "*"
+
+
+# --------------------------------------------------------------------------
 # state
 # --------------------------------------------------------------------------
+
+
+def _blank_state() -> dict[str, Any]:
+    return {"version": STATE_VERSION, "latches": {scope: {} for scope in SCOPES}}
+
+
+def migrate(state: dict[str, Any]) -> dict[str, Any]:
+    """Bring any state file StyleLatch has ever written up to the current shape.
+
+    Version 1 was a single flat latch with no notion of scope. It becomes the
+    global latch, which is exactly what it meant.
+    """
+    if not state:
+        return _blank_state()
+    if state.get("version") == STATE_VERSION and isinstance(state.get("latches"), dict):
+        for scope in SCOPES:
+            state["latches"].setdefault(scope, {})
+        return state
+
+    migrated = _blank_state()
+    for key in CARRIED_KEYS:
+        if key in state:
+            migrated[key] = state[key]
+    if state.get("enabled") and state.get("profile"):
+        migrated["latches"]["global"]["*"] = {
+            "profile": state["profile"],
+            "modifiers": list(state.get("modifiers") or []),
+            "at": time.time(),
+        }
+    return migrated
 
 
 def load_state() -> dict[str, Any]:
@@ -332,6 +417,11 @@ def load_state() -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def load_scoped() -> dict[str, Any]:
+    """State in the current shape, migrating an older file on the way."""
+    return migrate(load_state())
 
 
 def is_active() -> bool:
@@ -354,24 +444,9 @@ def nudge_text() -> str:
     return f"{head} {nudge}".strip() if nudge else head
 
 
-# Keys the state file carries that are not part of the latched style, and so
-# must survive a switch. Debug mode outliving a "::terse" is the whole point.
+# Keys the state file carries that belong to no scope, and so must survive
+# every latch, switch and clear. Debug mode outliving a "::terse" is the point.
 CARRIED_KEYS = ("debug", "restore")
-
-
-def write_state(result: dict[str, Any], enabled: bool = True) -> None:
-    carried = {key: value for key, value in load_state().items() if key in CARRIED_KEYS}
-    state_dir().mkdir(parents=True, exist_ok=True)
-    _atomic_write(active_path(), result["document"])
-    payload = {
-        "enabled": enabled,
-        "label": result["label"],
-        "profile": result["profile"],
-        "modifiers": result["modifiers"],
-        "nudge": result["nudge"],
-    }
-    payload.update(carried)
-    save_state_raw(payload)
 
 
 def save_state_raw(state: dict[str, Any]) -> None:
@@ -380,10 +455,138 @@ def save_state_raw(state: dict[str, Any]) -> None:
     _atomic_write(state_path(), json.dumps(state, indent=2) + "\n")
 
 
-def disable() -> None:
-    state = load_state()
+def _prune(bucket: dict[str, Any]) -> dict[str, Any]:
+    if len(bucket) <= MAX_REMEMBERED:
+        return bucket
+    keep = sorted(bucket.items(), key=lambda item: float(item[1].get("at", 0)), reverse=True)
+    return dict(keep[:MAX_REMEMBERED])
+
+
+def set_latch(scope: str, profile: str, modifiers: list[str]) -> None:
+    state = load_scoped()
+    bucket = state["latches"].setdefault(scope, {})
+    bucket[scope_key(scope)] = {
+        "profile": profile,
+        "modifiers": list(modifiers),
+        "at": time.time(),
+    }
+    state["latches"][scope] = _prune(bucket)
+    save_state_raw(state)
+
+
+def clear_latch(scope: str) -> bool:
+    """Remove the latch for one scope. Returns whether there was one."""
+    state = load_scoped()
+    removed = state["latches"].get(scope, {}).pop(scope_key(scope), None) is not None
+    if removed:
+        save_state_raw(state)
+    return removed
+
+
+def clear_all_latches() -> list[str]:
+    """Remove whatever is latched in every scope. Returns the scopes cleared."""
+    state = load_scoped()
+    cleared = [
+        scope for scope in SCOPES if state["latches"].get(scope, {}).pop(scope_key(scope), None)
+    ]
     state["enabled"] = False
     save_state_raw(state)
+    return cleared
+
+
+def latch_for(scope: str) -> dict[str, Any] | None:
+    key = scope_key(scope)
+    if not key:
+        return None
+    entry = load_scoped()["latches"].get(scope, {}).get(key)
+    return entry if isinstance(entry, dict) and entry.get("profile") else None
+
+
+def effective() -> tuple[str, dict[str, Any]] | None:
+    """The winning (scope, latch), most specific first, or None."""
+    for scope in SCOPES:
+        entry = latch_for(scope)
+        if entry is not None:
+            return scope, entry
+    return None
+
+
+# --------------------------------------------------------------------------
+# syncing the mirror
+# --------------------------------------------------------------------------
+#
+# The scoped latches are the truth. ACTIVE.md and the flat keys beside them
+# are a MIRROR of whichever latch currently wins, refreshed by the hooks.
+#
+# The mirror exists for layer 1 -- the line in AGENTS.md that reads ACTIVE.md
+# straight off disk when hooks are untrusted or broken. Layer 1 cannot resolve
+# a scope, so it gets the answer for the session that most recently ran.
+
+
+def _mirror_matches(state: dict[str, Any], scope: str, latch: dict[str, Any]) -> bool:
+    return (
+        bool(state.get("enabled"))
+        and state.get("scope") == scope
+        and state.get("source_profile") == latch.get("profile")
+        and list(state.get("source_modifiers") or []) == list(latch.get("modifiers") or [])
+    )
+
+
+def sync(force: bool = False) -> dict[str, Any] | None:
+    """Resolve the effective latch and refresh the mirror. Returns the style.
+
+    Recomposing costs a handful of small file reads, so layer 3 skips it when
+    the mirror already describes the winning latch. Layer 2 forces it, which
+    is how an edited style file takes effect: at the next session start.
+    """
+    state = load_scoped()
+    winner = effective()
+
+    if winner is None:
+        if state.get("enabled"):
+            state["enabled"] = False
+            save_state_raw(state)
+        return None
+
+    scope, latch = winner
+    if not force and _mirror_matches(state, scope, latch):
+        return None
+
+    try:
+        result = compose(latch["profile"], list(latch.get("modifiers") or []))
+    except (KeyError, IndexError):
+        # The style was renamed or deleted out from under the latch. Say
+        # nothing rather than injecting half a contract; ::status explains.
+        if state.get("enabled"):
+            state["enabled"] = False
+            save_state_raw(state)
+        return None
+
+    state_dir().mkdir(parents=True, exist_ok=True)
+    if read_active() != result["document"].strip():
+        _atomic_write(active_path(), result["document"])
+
+    state.update(
+        {
+            "enabled": True,
+            "scope": scope,
+            "label": result["label"],
+            "profile": result["profile"],
+            "modifiers": result["modifiers"],
+            "nudge": result["nudge"],
+            "source_profile": latch["profile"],
+            "source_modifiers": list(latch.get("modifiers") or []),
+        }
+    )
+    save_state_raw(state)
+    return result
+
+
+def latch(profile: str, modifiers: list[str] | tuple[str, ...] = (), scope: str = "global"):
+    """Set a latch and refresh the mirror in one step. Raises on an unknown style."""
+    compose(profile, list(modifiers))  # fail before writing anything
+    set_latch(scope, profile, list(modifiers))
+    return sync(force=True)
 
 
 def _atomic_write(path: Path, text: str) -> None:

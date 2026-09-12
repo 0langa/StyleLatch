@@ -164,21 +164,56 @@ class TestCanary(StyleLatchTestCase):
 
     def test_it_remembers_what_to_restore(self) -> None:
         self.context("::eli5+no-preamble")
-        report = _diagnostics.arm_canary()
-        self.assertEqual(_style.load_state()["restore"]["label"], "01+02")
-        self.assertIn("go back with ::01+02", report)
+        _diagnostics.arm_canary()
+        restore = _style.load_state()["restore"]
+        self.assertEqual(restore["profile"], "eli5")
+        self.assertEqual(restore["modifiers"], ["no-preamble"])
+        self.assertEqual(restore["scope"], "global")
 
     def test_arming_twice_does_not_forget_the_original(self) -> None:
         self.context("::terse")
         _diagnostics.arm_canary()
         _diagnostics.arm_canary()
-        self.assertEqual(_style.load_state()["restore"]["label"], "02")
+        self.assertEqual(_style.load_state()["restore"]["profile"], "terse")
+
+    def test_clearing_puts_the_original_back(self) -> None:
+        self.context("::eli5+no-preamble")
+        _diagnostics.arm_canary()
+        self.assertEqual(_style.load_state()["profile"], "canary")
+
+        report = _diagnostics.clear_canary()
+        self.assertIn("Back to eli5", report)
+        self.assertFalse(_diagnostics.canary_path().is_file())
+        self.assertEqual(_style.load_state()["label"], "01+02")
+
+    def test_clearing_with_nothing_armed_says_so(self) -> None:
+        self.assertIn("no canary was armed", _diagnostics.clear_canary())
+
+    def test_clearing_when_nothing_was_latched_leaves_nothing_latched(self) -> None:
+        _diagnostics.arm_canary()
+        _diagnostics.clear_canary()
+        self.assertIsNone(_style.effective())
+        self.assertFalse(_style.is_active())
+
+    def test_a_more_specific_latch_is_stood_down_for_the_test(self) -> None:
+        # A session latch would outrank the global canary and the test would
+        # silently measure the wrong style.
+        self.context("::terse @session", session_id="s1")
+        _style.set_session_hint("s1")
+        try:
+            _diagnostics.arm_canary()
+            self.assertEqual(_style.effective()[1]["profile"], "canary")
+        finally:
+            _style.set_session_hint(None)
 
     def test_it_writes_no_files_into_the_plugin(self) -> None:
         before = sorted(p.name for p in _style.profiles_dir().glob("*.md"))
         _diagnostics.arm_canary()
         after = sorted(p.name for p in _style.profiles_dir().glob("*.md"))
         self.assertEqual(before, after)
+        # It goes to the user style directory, which StyleLatch owns.
+        self.assertTrue(_diagnostics.canary_path().is_file())
+        self.assertIn(str(_style.state_dir()), str(_diagnostics.canary_path()))
 
 
 class TestVerify(StyleLatchTestCase):

@@ -50,6 +50,8 @@ def build(payload: dict) -> list[str]:
     # Project-scoped styles live next to the code they apply to, so the
     # hook has to know which project this invocation belongs to.
     _style.set_project_hint(payload.get("cwd") or payload.get("workspace"))
+    _style.set_session_hint(payload.get("session_id") or payload.get("sessionId"))
+    _style.sync(force=False)
     directive = _directives.parse(_style.prompt_from_payload(payload))
 
     # A ::test turn speaks for itself. Ticking debug mode here as well would

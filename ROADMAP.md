@@ -34,17 +34,18 @@ That has to stop before anyone invests in writing one.
 
 - [x] Three style sources, resolved in order: project (`.stylelatch/styles`
       in the repo), user (`$STYLELATCH_HOME/styles`), then the built-ins.
-- [ ] A project-scoped latch, so `terse` in one repo does not follow you into
+- [x] A project-scoped latch, so `terse` in one repo does not follow you into
       every other session.
-- [ ] Session-scoped and one-shot latches. `::terse!` for exactly this turn.
-- [ ] Precedence, stated once and enforced everywhere: session, then project,
+- [x] Session-scoped latches.
+- [ ] One-shot latches. `::terse!` for exactly this turn.
+- [x] Precedence, stated once and enforced everywhere: session, then project,
       then global.
 
 ## v0.4.0 — see what it is doing
 
 Injection is invisible by design, which makes failure invisible too.
 
-- [ ] `::status` — what is latched, where it came from, which scope won, what
+- [x] `::status` — what is latched, where it came from, which scope won, what
       it costs in characters and estimated tokens, and how long it has been on.
 - [ ] A bounded latch history, so "what did I have on yesterday" is answerable.
 - [ ] Drift instrumentation: how many turns since the last full re-injection.

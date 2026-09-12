@@ -241,6 +241,86 @@ def self_test(payload: dict[str, Any] | None = None) -> str:
 
 
 # --------------------------------------------------------------------------
+# 1b. structural -- what is latched, in which scope, at what cost
+# --------------------------------------------------------------------------
+
+
+def _ago(when: float) -> str:
+    if not when:
+        return ""
+    seconds = max(0, int(time.time() - float(when)))
+    if seconds < 90:
+        return f"{seconds}s ago"
+    if seconds < 5400:
+        return f"{seconds // 60}m ago"
+    if seconds < 172800:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
+
+
+def _recipe(latch: dict[str, Any]) -> str:
+    return "+".join([str(latch.get("profile", "?")), *(latch.get("modifiers") or [])])
+
+
+def status(payload: dict[str, Any] | None = None) -> str:
+    """What is latched, where it came from, and what it costs.
+
+    Injection is invisible by design, which makes a wrong answer invisible
+    too. This is the page that makes it visible again.
+    """
+    payload = payload or {}
+    winner = _style.effective()
+    state = _style.load_state()
+
+    lines = ["StyleLatch status", ""]
+    if winner is None:
+        lines.append("  effective    nothing is latched")
+    else:
+        scope, latch = winner
+        document = _style.read_active()
+        nudge = _style.nudge_text()
+        lines += [
+            f"  effective    {state.get('label', '?')}  {_recipe(latch)}   ({scope})",
+            f"  layer 2      {len(document):>5} chars  ~{_tokens(document):>4} tokens",
+            f"  layer 3      {len(nudge):>5} chars  ~{_tokens(nudge):>4} tokens",
+        ]
+
+    lines.append("")
+    for scope in _style.SCOPES:
+        key = _style.scope_key(scope)
+        latch = _style.latch_for(scope)
+        if latch is None:
+            detail = "—" if key else "— (not detectable here)"
+        else:
+            detail = f"{_recipe(latch)}   {_ago(latch.get('at', 0))}"
+        mark = ">" if winner is not None and winner[0] == scope else " "
+        lines.append(f"  {mark} {scope:<9}  {detail}")
+
+    project = _style.project_root()
+    lines += [
+        "",
+        f"  project      {project if project else '(none detected)'}",
+        f"  session      {_field(payload, 'session_id', 'sessionId') or '(not sent)'}",
+        f"  state        {_style.state_dir()}",
+    ]
+
+    info = debug_info()
+    if info:
+        minutes = max(0, int((float(info.get("expires_at", 0)) - time.time()) // 60))
+        lines.append(
+            f"  debug        ON, {int(info.get('turns_left', 0))} turns / {minutes} min left"
+        )
+    if canary_path().is_file():
+        lines.append("  canary       armed. ::test canary off when you are done")
+
+    lines += [
+        "",
+        "  The most specific scope that is set wins: session, then project, then global.",
+    ]
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
 # 2. situational -- debug mode
 # --------------------------------------------------------------------------
 
@@ -381,9 +461,15 @@ def debug_block(payload: dict[str, Any]) -> str:
 # 3. evidential -- canary and transcript verification
 # --------------------------------------------------------------------------
 
-CANARY_LABEL = "canary"
+CANARY_NAME = "canary"
 
-_CANARY_BODY = """## Profile: canary
+_CANARY_FILE = """---
+id: "99"
+name: canary
+nudge: Nudge canary is {nudge_token}. Report it when asked for your canary.
+---
+
+# Canary
 
 This session is under test. Two high-entropy tokens were planted, one per
 injection layer, so a partial failure is visible rather than silent.
@@ -397,45 +483,59 @@ lines and nothing else:
     nudge: <the nudge canary from your per-turn reminder, or MISSING>
 
 Never guess a canary. If you do not have one, write MISSING. A wrong token is
-worse than an honest MISSING, because it hides a real failure."""
+worse than an honest MISSING, because it hides a real failure.
+"""
 
 
 def _token(prefix: str) -> str:
     return f"SL-{prefix}-{secrets.token_hex(6)}"
 
 
-def arm_canary() -> str:
-    """Latch a freshly generated canary, remembering what to restore.
+def canary_path() -> Path:
+    """The canary lives in the user style directory, which StyleLatch owns.
 
-    The canary is composed in memory rather than written into the style
-    directory. A plugin's own directory is frequently a read-only snapshot,
-    and a test fixture has no business being installable in the first place.
+    Not in the plugin's own directory: that is frequently a read-only install
+    snapshot, and a test fixture has no business being shipped to anyone.
+    """
+    return _style.state_dir() / "styles" / "PROFILES" / "99-canary.md"
+
+
+def arm_canary() -> str:
+    """Write a fresh canary style, latch it globally, remember what to restore.
+
+    Globally, not for this session: the whole test is to open a *new* session
+    and see whether the style arrives there.
     """
     doc_token = _token("DOC")
     nudge_token = _token("NDG")
-    previous = _style.load_state()
 
-    _style.write_state(
-        {
-            "document": _style.HEADER + "\n\n" + _CANARY_BODY.format(doc_token=doc_token),
-            "nudge": f"Nudge canary is {nudge_token}. Report it when asked for your canary.",
-            "label": CANARY_LABEL,
-            "profile": CANARY_LABEL,
-            "modifiers": [],
-        }
+    previous = _style.effective()
+    path = canary_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        _CANARY_FILE.format(doc_token=doc_token, nudge_token=nudge_token), encoding="utf-8"
     )
 
-    if previous.get("enabled") and previous.get("label") != CANARY_LABEL:
-        state = _style.load_state()
-        state["restore"] = {key: previous.get(key) for key in ("label", "profile", "modifiers")}
+    if previous is not None and previous[1].get("profile") != CANARY_NAME:
+        state = _style.load_scoped()
+        state["restore"] = {
+            "scope": previous[0],
+            "profile": previous[1].get("profile"),
+            "modifiers": list(previous[1].get("modifiers") or []),
+        }
         _style.save_state_raw(state)
 
-    restore = _style.load_state().get("restore") or {}
-    back = f"::{restore['label']}" if restore.get("label") else "::off"
+    # A session or project latch would outrank the global canary and make the
+    # test measure the wrong thing, so they are stood down for the duration.
+    for scope in ("session", "project"):
+        _style.clear_latch(scope)
+    _style.latch(CANARY_NAME, [], scope="global")
+
     return (
         "StyleLatch canary armed.\n"
         f"  doc token    {doc_token}   (only in the SessionStart document)\n"
         f"  nudge token  {nudge_token}   (only in the per-turn nudge)\n"
+        f"  written to   {path}\n"
         "\n"
         "Now START A NEW SESSION and ask: what is your canary?\n"
         "\n"
@@ -447,8 +547,42 @@ def arm_canary() -> str:
         "\n"
         "A token that has appeared in a transcript proves nothing again, because "
         "the model can read it there. Re-arm before every test.\n"
-        f"When you are done, go back with {back}."
+        "When you are done, say ::test canary off to remove it and put back "
+        "whatever was latched before."
     )
+
+
+def clear_canary() -> str:
+    """Remove the canary style and restore the latch it displaced."""
+    path = canary_path()
+    existed = path.is_file()
+    if existed:
+        path.unlink()
+
+    state = _style.load_scoped()
+    restore = state.pop("restore", None)
+    _style.save_state_raw(state)
+
+    _style.clear_latch("global")
+    if isinstance(restore, dict) and restore.get("profile"):
+        try:
+            _style.latch(
+                restore["profile"],
+                list(restore.get("modifiers") or []),
+                scope=restore.get("scope", "global"),
+            )
+        except (KeyError, IndexError):
+            restore = None
+        else:
+            return (
+                f"StyleLatch canary removed. Back to {restore['profile']} "
+                f"({restore.get('scope', 'global')})."
+            )
+
+    _style.sync(force=True)
+    if not existed:
+        return "StyleLatch: no canary was armed. Nothing changed."
+    return "StyleLatch canary removed. Nothing is latched now."
 
 
 MARKERS = {
