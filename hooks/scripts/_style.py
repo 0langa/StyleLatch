@@ -210,6 +210,7 @@ def _read_dir(directory: Path, source: str) -> list[dict[str, Any]]:
                 "id": meta.get("id") or path.stem.split("-", 1)[0],
                 "name": meta.get("name") or path.stem.split("-", 1)[-1],
                 "nudge": meta.get("nudge", ""),
+                "checks": meta.get("checks", ""),
                 "body": body,
                 "path": path,
                 "source": source,
@@ -313,10 +314,18 @@ def compose(profile_key: str, modifier_keys: list[str]) -> dict[str, Any]:
     if len(nudge) > MAX_NUDGE_CHARS:
         nudge = nudge[: MAX_NUDGE_CHARS - 1].rstrip() + "…"
 
+    # Checks accumulate: a modifier can add an assertion to any profile.
+    checks = "; ".join(
+        part.strip()
+        for part in [profile["checks"], *(entry["checks"] for entry in chosen)]
+        if part.strip()
+    )
+
     label = "+".join([str(profile["id"])] + [str(e["id"]) for e in chosen])
     return {
         "document": document,
         "nudge": nudge,
+        "checks": checks,
         "label": label,
         "profile": profile["name"],
         "modifiers": [entry["name"] for entry in chosen],
@@ -605,6 +614,7 @@ def sync(force: bool = False) -> dict[str, Any] | None:
             "profile": result["profile"],
             "modifiers": result["modifiers"],
             "nudge": result["nudge"],
+            "checks": result.get("checks", ""),
             "source_profile": latch["profile"],
             "source_modifiers": list(latch.get("modifiers") or []),
         }

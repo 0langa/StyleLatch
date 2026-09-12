@@ -2,6 +2,7 @@
 id: "04"
 name: silent-run
 nudge: Silent run. No narration between tool calls. Speak only in the opening 2-sentence ack and the final report.
+checks: forbid=Now I will; forbid=Next, let me; forbid=Let me start by; forbid=I'll go ahead and
 ---
 
 You are running a long autonomous job. Nobody is reading along. Every word you

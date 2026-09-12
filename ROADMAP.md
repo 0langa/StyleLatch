@@ -48,7 +48,8 @@ Injection is invisible by design, which makes failure invisible too.
 - [x] `::status` — what is latched, where it came from, which scope won, what
       it costs in characters and estimated tokens, and how long it has been on.
 - [x] A bounded latch history, so "what did I have on yesterday" is answerable.
-- [ ] Drift instrumentation: how many turns since the last full re-injection.
+- [x] Drift instrumentation — answered better than planned: adherence is now
+      measured against the reply itself, not inferred from injection timing.
 
 ## v0.5.0 — a plugin, not a script folder  (mostly shipped in v0.2.0)
 
@@ -62,7 +63,8 @@ Injection is invisible by design, which makes failure invisible too.
 
 - Style linting: catch a style that contradicts itself, or that tries to
   govern permissions rather than prose.
-- A measured answer to "does this style actually hold", beyond the canary.
+- Adherence checks that understand more than text: ordering rules, and "the
+  first line answers the question".
 - Team styles shared through a repository rather than a home directory.
 
 ## Non-goals

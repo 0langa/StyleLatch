@@ -20,13 +20,14 @@ So attention to it falls off. In practice the shape is:
 Anything that fixes this has to re-state the constraint on a schedule. The rest
 of the design is about making that affordable.
 
-## Three layers
+## Four layers
 
 | Layer | Mechanism | Fires | Carries |
 |---|---|---|---|
 | 1 | a line in `AGENTS.md` / `CLAUDE.md` | always in context | a pointer to `ACTIVE.md` |
 | 2 | `SessionStart` hook | startup, resume, clear, compact, fork | the whole contract |
-| 3 | `UserPromptSubmit` hook | every turn | ~30 words |
+| 3 | `UserPromptSubmit` hook | every turn | ~30 words, plus a correction |
+| 4 | `Stop` hook | after every reply | nothing — it *reads* |
 
 **Layer 2** is the load-bearing one. Its matcher includes `compact` and `fork`,
 which are exactly the two moments a style dies otherwise.
@@ -40,8 +41,24 @@ one-time trust step) or silently broken. It reads `ACTIVE.md` straight off
 disk. It cannot resolve a scope, which is why `ACTIVE.md` is a mirror rather
 than the source of truth.
 
+**Layer 4** is the only one that reads rather than writes. It pulls the reply
+that just finished out of the host's own transcript and checks it against the
+style's declared assertions. That is what turns "the style is holding" from an
+impression into a number, and it is what lets layer 3 stop being a reminder and
+start being a correction:
+
+```
+OUTPUT STYLE 02 ACTIVE — obey it exactly. Answer first, in one line. …
+STYLE BREACH last reply: wrote "let me know if"; wrote "hope that helps".
+Do not repeat it in this one.
+```
+
+Naming the rule that just broke is a far stronger signal than restating the
+whole style, and it is cheaper.
+
 When nothing is latched, every hook prints `{"continue": true}` and stops. The
-cost of having StyleLatch installed and unused is one process spawn per turn.
+cost of having StyleLatch installed and unused is two short-lived process
+spawns per exchange, both of which exit after reading one small JSON file.
 
 ## Compose at switch time, not read time
 
@@ -117,6 +134,31 @@ First source wins on a name or id collision. A losing entry is not dropped from
 the catalogue: it keeps a `shadowed_by` pointer, so `::?` and `::test` can say
 which source won and which lost.
 
+## Measuring adherence
+
+A style may declare machine-checkable assertions in its frontmatter:
+
+```yaml
+checks: max_sentence_words=25; forbid=let me know if; no_bullets
+```
+
+Layer 4 evaluates them against the finished reply and records the result,
+bounded to the last twenty turns. Three deliberate limits:
+
+- **Only mechanical rules.** "Name the mechanism, not the vibe" is not
+  checkable and is not meant to be. What *is* checkable turns out to cover most
+  real decay, because drift is usually additive: the preamble returns, the
+  closing offer of help returns, the bullet list grows a summary.
+- **Code is not prose.** Fenced and inline code is stripped before prose rules
+  run. A rule about sentence length is not talking about a shell command.
+- **Each breach is corrected once.** If the Stop hook is not running — an
+  unsupported host, an unrecognised transcript shape — the last record never
+  changes, and a correction that repeated every turn would be nagging about a
+  reply the user moved past long ago.
+
+A reply the module cannot find in the transcript records **nothing**. Recording
+a clean turn there would be a lie, and a broken one worse.
+
 ## Fail open, always
 
 Every hook entrypoint catches everything and falls back to
@@ -135,9 +177,11 @@ hooks/scripts/
   _style.py              paths, style files, compose, scopes, state    (the model)
   _directives.py         parsing and dispatch for ::                   (the controller)
   _diagnostics.py        self-test, status, debug mode, canary, verify
+  _adherence.py          the check language, evaluation, and the record
   session_start.py       layer 2 entrypoint
   user_prompt_submit.py  layer 3 entrypoint
-  _show.py              renders the catalogue for the slash command
+  stop.py                layer 4 entrypoint
+  _show.py               renders the catalogue for the slash command
 ```
 
 `_style.py` knows nothing about `::`. `_directives.py` produces only text.

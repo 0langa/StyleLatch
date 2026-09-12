@@ -17,7 +17,7 @@ restart: the switch happens inside a hook that was going to fire anyway.
 It also ships a skill, so an agent can help you write a style of your own
 rather than only wear one.
 
-Status: v0.2.1.
+Status: v0.3.0.
 
 ---
 
@@ -35,16 +35,19 @@ You pick `profile + modifiers`. They are merged **then**, into one flat file
 with the real rules already written out. The agent reads one file and never
 resolves an id to a path. No hops to drop.
 
-### 2. Three layers, because one is not enough
+### 2. Four layers, because one is not enough
 
 | Layer | Where | Fires | Cost when no style is set |
 |---|---|---|---|
 | 1 | `AGENTS.md` / `CLAUDE.md` line | always in context | zero |
 | 2 | `SessionStart` hook | startup, resume, clear, compact, **fork** | zero |
 | 3 | `UserPromptSubmit` hook | every turn | zero |
+| 4 | `Stop` hook | after every reply | zero |
 
 Layer 3 injects a ~30-word reminder, never the whole contract. That budget is
 the only reason a per-turn hook is affordable at all.
+
+Layer 4 is the one that reads back. See *Does it actually hold?* below.
 
 When no style is set every hook prints `{"continue": true}` and stops. It costs
 nothing, and no agent goes hunting for a directory.
@@ -137,6 +140,45 @@ look up again.
 
 ---
 
+## Does it actually hold?
+
+Every other part of StyleLatch pushes a style at the model. This part reads
+back what came out.
+
+A style can declare assertions that are checked against each finished reply:
+
+```yaml
+checks: max_sentence_words=25; forbid=let me know if; forbid_opening=Great question
+```
+
+Break one, and the **next** turn's reminder names the specific rule instead of
+restating the whole style:
+
+```
+OUTPUT STYLE 02 ACTIVE — obey it exactly. Answer first, in one line. …
+STYLE BREACH last reply: wrote "let me know if"; wrote "hope that helps".
+Do not repeat it in this one.
+```
+
+`::status` keeps the score:
+
+```
+  checks       5 declared by the latched style
+  adherence    7/9 of the last replies held
+               broke: wrote "let me know if"; a 31-word sentence (max 25)
+```
+
+Three limits, stated plainly. Only mechanical rules can be checked — *name the
+mechanism, not the vibe* is not one, and is not meant to be. Code is stripped
+before prose rules run, so a sentence-length rule never fires on a shell
+command. And each breach is corrected exactly once, so a host without a `Stop`
+hook cannot end up nagging forever about one old reply.
+
+The built-in styles declare their own checks, so this works out of the box.
+See [docs/authoring-styles.md](docs/authoring-styles.md) for the full rule list.
+
+---
+
 ## When it does not seem to be working
 
 Everything diagnostic lives behind one directive.
@@ -207,7 +249,7 @@ reached the model, and there is nothing left to argue about.
 styles/PROFILES/       the built-in voices
 styles/MODIFIERS/      single rules that stack onto a voice
 hooks/hooks.json       layer 2 + layer 3 registration
-hooks/scripts/         _style.py, _directives.py, _diagnostics.py, two hook entrypoints
+hooks/scripts/         the model, the directives, the diagnostics, and three hook entrypoints
 skills/stylelatch/     the skill both providers auto-discover
 commands/styles.md    the Claude Code slash command
 AGENTS_SNIPPET.md      the one line for layer 1

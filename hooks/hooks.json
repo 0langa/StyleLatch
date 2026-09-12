@@ -26,6 +26,19 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -S \"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/hooks/scripts/stop.py\"",
+            "commandWindows": "py -3 -S -c \"import os,runpy,sys; p=os.path.join((os.environ.get('CLAUDE_PLUGIN_ROOT') or os.environ['PLUGIN_ROOT']),'hooks','scripts','stop.py'); sys.path.insert(0, os.path.dirname(p)); runpy.run_path(p, run_name='__main__')\"",
+            "statusMessage": "StyleLatch adherence",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

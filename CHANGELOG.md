@@ -7,8 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.0] - 2026-09-12
+
 ### Added
 
+- **A fourth layer, and the first one that reads rather than writes.** A style
+  may declare machine-checkable assertions in its frontmatter, and a `Stop`
+  hook measures the finished reply against them:
+
+  ```yaml
+  checks: max_sentence_words=25; forbid=let me know if; no_bullets
+  ```
+
+  Rules: `max_sentence_words`, `max_reply_lines`, `max_reply_chars`,
+  `max_paragraphs`, `forbid`, `forbid_opening`, `require`, `no_headings`,
+  `no_bullets`. Modifiers can add checks, and they accumulate.
+- **Closed-loop correction.** Breaking a check puts one short line in the next
+  turn's nudge naming the rule that broke, instead of restating the whole
+  style. Naming the specific failure is a stronger signal for fewer tokens.
+  Each breach is delivered exactly once, so a host without a `Stop` hook cannot
+  nag forever about one old reply.
+- `::status` reports adherence over the recent replies, and what broke.
+- `::test` fails on a `checks` line it cannot parse. A check that is silently
+  never enforced is the worst outcome: the style looks measured and is not.
+- The five built-in styles that have mechanically checkable rules now declare
+  them, so this works without writing a style first.
 - One-shot latches: `::terse! explain this regex` applies the rules to that
   message and latches nothing, so trying a style — or asking for one plain
   answer — no longer costs you the style you actually work in.
@@ -116,7 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diagnostics: a two-token canary, and a session-log scanner that proves
   injection from the host's own transcript rather than the model's testimony.
 
-[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/0langa/StyleLatch/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/0langa/StyleLatch/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/0langa/StyleLatch/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/0langa/StyleLatch/releases/tag/v0.1.0
