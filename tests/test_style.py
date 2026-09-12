@@ -1,42 +1,17 @@
-"""Stdlib-only tests. Run: python -m unittest discover -s tests
+"""The model layer: style files, composition, state, and the two hooks.
 
-Every test points STYLELATCH_HOME at a temp dir, so the real state at
-~/.stylelatch is never read or written.
+Run: python -m unittest discover -s tests
 """
 
 from __future__ import annotations
 
-import importlib
 import json
-import os
-import subprocess
-import sys
-import tempfile
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "hooks" / "scripts"))
-
-import _style  # noqa: E402
+from _support import ROOT, StyleLatchTestCase, _style
 
 
-class StyleTestCase(unittest.TestCase):
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
-        self._saved = os.environ.get("STYLELATCH_HOME")
-        os.environ["STYLELATCH_HOME"] = self._tmp.name
-        importlib.reload(_style)
-
-    def tearDown(self) -> None:
-        if self._saved is None:
-            os.environ.pop("STYLELATCH_HOME", None)
-        else:
-            os.environ["STYLELATCH_HOME"] = self._saved
-        self._tmp.cleanup()
-
-
-class TestCatalog(StyleTestCase):
+class TestCatalog(StyleLatchTestCase):
     def test_profiles_are_found_by_id_and_name(self) -> None:
         available = _style.profiles()
         self.assertIn("01", available)
@@ -49,12 +24,11 @@ class TestCatalog(StyleTestCase):
 
     def test_ids_are_unique(self) -> None:
         for catalog in (_style.profiles(), _style.modifiers()):
-            entries = _style.unique(catalog)
-            ids = [entry["id"] for entry in entries]
+            ids = [entry["id"] for entry in _style.unique(catalog)]
             self.assertEqual(len(ids), len(set(ids)))
 
 
-class TestCompose(StyleTestCase):
+class TestCompose(StyleLatchTestCase):
     def test_compose_inlines_the_real_rules(self) -> None:
         result = _style.compose("01", [])
         # The whole point: no id left for the agent to resolve.
@@ -83,8 +57,22 @@ class TestCompose(StyleTestCase):
         result = _style.compose("01", ["01", "02", "03"])
         self.assertLessEqual(len(result["nudge"]), _style.MAX_NUDGE_CHARS)
 
+    def test_every_built_in_document_fits_the_budget(self) -> None:
+        for entry in _style.unique(_style.profiles()):
+            result = _style.compose(entry["name"], [])
+            self.assertLessEqual(
+                len(result["document"]),
+                _style.MAX_ACTIVE_CHARS,
+                f"{entry['name']} composes over budget",
+            )
+            self.assertNotIn(
+                "…\n",
+                result["document"][-3:],
+                f"{entry['name']} was truncated by the budget cap",
+            )
 
-class TestState(StyleTestCase):
+
+class TestState(StyleLatchTestCase):
     def test_inactive_by_default(self) -> None:
         self.assertFalse(_style.is_active())
         self.assertEqual(_style.load_state(), {})
@@ -107,39 +95,47 @@ class TestState(StyleTestCase):
         self.assertEqual(_style.load_state(), {})
         self.assertFalse(_style.is_active())
 
+    def test_switching_a_style_preserves_carried_keys(self) -> None:
+        # Debug mode has to survive a "::terse" typed in the middle of it.
+        _style.write_state(_style.compose("01", []))
+        state = _style.load_state()
+        state["debug"] = {"turns_left": 7}
+        state["restore"] = {"label": "03"}
+        _style.save_state_raw(state)
 
-class TestHooks(StyleTestCase):
-    def _run(self, script: str) -> dict:
-        env = dict(os.environ)
-        env["STYLELATCH_ROOT"] = str(ROOT)
-        proc = subprocess.run(
-            [sys.executable, "-S", str(ROOT / "hooks" / "scripts" / script)],
-            input="{}",
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=30,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return json.loads(proc.stdout)
+        _style.write_state(_style.compose("02", []))
+        after = _style.load_state()
+        self.assertEqual(after["label"], "02")
+        self.assertEqual(after["debug"], {"turns_left": 7})
+        self.assertEqual(after["restore"], {"label": "03"})
 
-    def test_hooks_are_silent_when_no_style_is_set(self) -> None:
+    def test_disable_preserves_carried_keys(self) -> None:
+        _style.write_state(_style.compose("01", []))
+        state = _style.load_state()
+        state["debug"] = {"turns_left": 3}
+        _style.save_state_raw(state)
+
+        _style.disable()
+        after = _style.load_state()
+        self.assertFalse(after["enabled"])
+        self.assertEqual(after["debug"], {"turns_left": 3})
+
+
+class TestHooks(StyleLatchTestCase):
+    def test_hooks_are_silent_when_nothing_is_set(self) -> None:
         for script in ("session_start.py", "user_prompt_submit.py"):
-            payload = self._run(script)
-            self.assertEqual(payload, {"continue": True}, script)
+            self.assertEqual(self.hook(script), {"continue": True}, script)
 
     def test_session_start_injects_the_full_document(self) -> None:
         _style.write_state(_style.compose("01", ["02"]))
-        payload = self._run("session_start.py")
-        specific = payload["hookSpecificOutput"]
+        specific = self.hook("session_start.py")["hookSpecificOutput"]
         self.assertEqual(specific["hookEventName"], "SessionStart")
         self.assertIn("STRICT ENFORCEMENT", specific["additionalContext"])
         self.assertIn("Start with the substance", specific["additionalContext"])
 
     def test_prompt_hook_injects_only_the_small_nudge(self) -> None:
         _style.write_state(_style.compose("01", ["02"]))
-        payload = self._run("user_prompt_submit.py")
-        specific = payload["hookSpecificOutput"]
+        specific = self.hook("user_prompt_submit.py")["hookSpecificOutput"]
         self.assertEqual(specific["hookEventName"], "UserPromptSubmit")
         text = specific["additionalContext"]
         self.assertIn("OUTPUT STYLE 01+02 ACTIVE", text)
@@ -147,13 +143,30 @@ class TestHooks(StyleTestCase):
         self.assertNotIn("STRICT ENFORCEMENT", text)
         self.assertLess(len(text), 400)
 
+    def test_a_hook_survives_junk_on_stdin(self) -> None:
+        import os
+        import subprocess
+        import sys
 
-class TestNonAsciiStyles(StyleTestCase):
+        env = dict(os.environ)
+        env["STYLELATCH_ROOT"] = str(ROOT)
+        for script in ("session_start.py", "user_prompt_submit.py"):
+            proc = subprocess.run(
+                [sys.executable, "-S", str(ROOT / "hooks" / "scripts" / script)],
+                input="not json at all {[",
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout), {"continue": True}, script)
+
+
+class TestNonAsciiStyles(StyleLatchTestCase):
     """Regression: a style may contain any character, including emoji.
 
-    Found by 04-red-balls.md, which puts an emoji between every word. The
-    hooks were fine (json.dumps escapes to ASCII) but the CLI crashed with
-    UnicodeEncodeError on a cp1252 Windows console.
+    Found by 04-red-balls.md, which puts an emoji between every word.
     """
 
     def test_emoji_modifier_is_discovered(self) -> None:
@@ -169,105 +182,39 @@ class TestNonAsciiStyles(StyleTestCase):
         payload = json.dumps(_style.additional_context("UserPromptSubmit", _style.nudge_text()))
         payload.encode("ascii")  # json.dumps escapes non-ASCII; must not raise
 
-    def test_cli_does_not_crash_printing_emoji(self) -> None:
-        env = dict(os.environ)
-        env["STYLELATCH_ROOT"] = str(ROOT)
-        env["PYTHONIOENCODING"] = "cp1252"  # force the failing console encoding
-        proc = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "style.py"),
-                "set",
-                "01",
-                "--with",
-                "red-balls",
-            ],
-            capture_output=True,
-            text=True,
-            errors="replace",
-            env=env,
-            timeout=30,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
 
+class TestManifests(StyleLatchTestCase):
+    """A plugin that will not load is worse than a plugin that misbehaves."""
 
-class TestDirectives(StyleTestCase):
-    """The in-chat switch: "::eli5+red-balls" typed straight into the chat."""
+    def _load(self, relative: str) -> dict:
+        return json.loads((ROOT / relative).read_text(encoding="utf-8"))
 
-    def _hook(self, prompt: str) -> dict:
-        env = dict(os.environ)
-        env["STYLELATCH_ROOT"] = str(ROOT)
-        proc = subprocess.run(
-            [sys.executable, "-S", str(ROOT / "hooks" / "scripts" / "user_prompt_submit.py")],
-            input=json.dumps({"prompt": prompt}),
-            capture_output=True,
-            text=True,
-            errors="replace",
-            env=env,
-            timeout=30,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return json.loads(proc.stdout)
+    def test_manifests_agree_on_name_and_version(self) -> None:
+        claude = self._load(".claude-plugin/plugin.json")
+        codex = self._load(".codex-plugin/plugin.json")
+        self.assertEqual(claude["name"], codex["name"])
+        self.assertEqual(claude["version"], codex["version"])
 
-    def _context(self, prompt: str) -> str:
-        return self._hook(prompt)["hookSpecificOutput"]["additionalContext"]
+    def test_marketplace_entry_matches_the_plugin(self) -> None:
+        plugin = self._load(".claude-plugin/plugin.json")
+        market = self._load(".claude-plugin/marketplace.json")
+        entry = next(p for p in market["plugins"] if p["name"] == plugin["name"])
+        self.assertEqual(entry["version"], plugin["version"])
 
-    def test_parses_bare_and_trailing_forms(self) -> None:
-        self.assertEqual(_style.parse_directive("::eli5+red-balls"), ("eli5+red-balls", ""))
-        self.assertEqual(
-            _style.parse_directive("  ::01+04  fix the parser"), ("01+04", "fix the parser")
-        )
+    def test_hooks_json_registers_both_layers(self) -> None:
+        hooks = self._load("hooks/hooks.json")["hooks"]
+        self.assertIn("SessionStart", hooks)
+        self.assertIn("UserPromptSubmit", hooks)
+        matcher = hooks["SessionStart"][0]["matcher"]
+        # fork and clear are easy to miss and are exactly where a style dies.
+        for event in ("startup", "resume", "clear", "compact", "fork"):
+            self.assertIn(event, matcher)
 
-    def test_does_not_fire_mid_sentence(self) -> None:
-        self.assertIsNone(_style.parse_directive("we could use :: as a prefix"))
-        self.assertIsNone(_style.parse_directive("no directive here"))
-
-    def test_switch_works_with_nothing_latched_yet(self) -> None:
-        # The first ever "::" is typed when no style is active. It must work.
-        self.assertFalse(_style.is_active())
-        text = self._context("::eli5+red-balls")
-        self.assertIn("latched 01+04", text)
-        self.assertTrue(_style.is_active())
-        self.assertEqual(_style.load_state()["label"], "01+04")
-
-    def test_bare_directive_injects_full_rules_and_asks_for_a_stub_reply(self) -> None:
-        text = self._context("::eli5")
-        self.assertIn("STRICT ENFORCEMENT", text)
-        self.assertIn('"latched: 01"', text)
-
-    def test_directive_with_a_task_keeps_the_task(self) -> None:
-        text = self._context("::terse fix the parser")
-        self.assertIn("latched 02", text)
-        self.assertIn("the user's actual request", text)
-        self.assertNotIn('latched: 02" and nothing else', text)
-
-    def test_off_disables(self) -> None:
-        self._context("::eli5")
-        self.assertTrue(_style.is_active())
-        self._context("::off")
-        self.assertFalse(_style.is_active())
-
-    def test_question_mark_lists_without_changing_anything(self) -> None:
-        _style.write_state(_style.compose("01", []))
-        text = self._context("::?")
-        self.assertIn("red-balls", text)
-        self.assertIn("Latched now: 01", text)
-        self.assertEqual(_style.load_state()["label"], "01")
-
-    def test_unknown_name_changes_nothing_and_shows_the_catalog(self) -> None:
-        _style.write_state(_style.compose("01", []))
-        text = self._context("::nonsense+bogus")
-        self.assertIn("Nothing changed", text)
-        self.assertIn("PROFILES", text)
-        self.assertEqual(_style.load_state()["label"], "01")
-
-    def test_debug_reports_payload_keys(self) -> None:
-        text = self._context("::debug")
-        self.assertIn("payload keys: prompt", text)
-        self.assertIn("prompt text found: yes", text)
-
-    def test_no_directive_and_no_style_costs_nothing(self) -> None:
-        self.assertEqual(self._hook("just a normal message"), {"continue": True})
+    def test_manifests_do_not_declare_a_hooks_path(self) -> None:
+        # Declaring it alongside the default hooks/hooks.json double-registers
+        # on Claude Code and fails plugin load with "Duplicate hooks file".
+        for relative in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
+            self.assertNotIn("hooks", self._load(relative), relative)
 
 
 if __name__ == "__main__":

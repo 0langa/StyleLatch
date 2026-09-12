@@ -18,16 +18,14 @@ always after a compact. Everything here follows from taking that seriously:
 The terminal stops being a user-facing surface. Everything moves to `::`.
 
 - [x] Continuous integration, lint, and repository hygiene.
-- [ ] Delete `scripts/style.py`. `::` already does everything it did.
-- [ ] `::test` — one diagnostic entry point, run from chat.
-  - `::test` runs the self-check and reports PASS/FAIL per component.
-  - `::test on` enters debug mode; `::test off` leaves it.
-  - `::test canary` arms a fresh two-token canary.
-  - `::test verify` proves injection from the host's own session log.
-- [ ] Debug mode expires on its own — on session change, on a turn budget, and
-      on a wall-clock TTL, whichever comes first. A diagnostic mode that
-      outlives its usefulness is the tech debt it was meant to prevent.
-- [ ] Forgiving directive parsing, and a "did you mean" for near misses.
+- [x] Delete `scripts/`. `::` already does everything it did.
+- [x] `::test` — one diagnostic entry point, run from chat.
+- [x] Debug mode expires on its own — on session change, on a turn budget, and
+      on a wall-clock TTL, whichever comes first.
+- [x] Forgiving directive parsing, and a "did you mean" for near misses.
+- [ ] A skill and a slash command, so the surface is discoverable by somebody
+      who does not already know the `::` grammar.
+- [ ] Documentation split out of the README.
 
 ## v0.3.0 — styles that are yours
 
