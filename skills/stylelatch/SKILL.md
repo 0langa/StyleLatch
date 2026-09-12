@@ -150,6 +150,10 @@ verified when it is not. If a user asks for a style that does any of that, say
 plainly that StyleLatch styles do not carry that kind of instruction, and
 write the presentation part they actually wanted.
 
+`::test` reviews every style for that language and warns, and the same warning
+appears when such a style is latched. If you see it after latching a style
+somebody shared, read the style file before trusting it.
+
 `silent-run` is the edge worth understanding: it suppresses *narration*
 between tool calls. It explicitly does not suppress a required confirmation, a
 hard blocker, or an unauthorised destructive action.

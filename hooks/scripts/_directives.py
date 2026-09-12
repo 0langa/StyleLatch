@@ -21,6 +21,7 @@ import difflib
 from typing import Any
 
 import _diagnostics
+import _guard
 import _style
 
 # Alias sets. Being generous here costs one tuple and saves a user who
@@ -404,6 +405,12 @@ def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
         summary += " + " + ", ".join(result["modifiers"])
     if scope != "global":
         summary += f", {SCOPE_PHRASE[scope]}"
+
+    # The moment a style is latched is the moment worth saying this. A style
+    # file is executable prose, and one can arrive by cloning a repository.
+    warning = _guard.notice(result.get("concerns") or [])
+    if warning:
+        summary = warning + "\n\n" + summary
 
     if not task:
         return (

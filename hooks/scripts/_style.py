@@ -24,6 +24,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import _guard
+
 STATE_FILE = "state.json"
 ACTIVE_FILE = "ACTIVE.md"
 
@@ -321,9 +323,16 @@ def compose(profile_key: str, modifier_keys: list[str]) -> dict[str, Any]:
         if part.strip()
     )
 
+    # Reviewed from the source bodies, not the composed document: the header
+    # itself talks about safety rules and permission checks, and would trip.
+    concerns: list[str] = []
+    for entry in [profile, *chosen]:
+        concerns += [f"{entry['name']} -- {line}" for line in _guard.review(entry["body"])]
+
     label = "+".join([str(profile["id"])] + [str(e["id"]) for e in chosen])
     return {
         "document": document,
+        "concerns": concerns,
         "nudge": nudge,
         "checks": checks,
         "label": label,

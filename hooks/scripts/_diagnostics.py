@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import _adherence
+import _guard
 import _style
 
 # Debug mode is deliberately hard to leave running. Whichever of these limits
@@ -194,6 +195,24 @@ def _check_hooks() -> tuple[bool, str]:
     return True, f"registered: {', '.join(events)}"
 
 
+def _check_guard() -> tuple[bool, str]:
+    """Look for a style that is trying to govern conduct rather than prose.
+
+    A warning, never a refusal: the model's own training is the real defence
+    and a substring search is a hint. But a style file is executable prose,
+    and one can arrive by cloning a repository, so somebody should say it.
+    """
+    flagged = []
+    for kind in ("PROFILES", "MODIFIERS"):
+        for entry in _style.collect(kind):
+            for line in _guard.review(entry["body"]):
+                flagged.append(f"{entry['name']} ({entry['source']}) -- {line}")
+    if flagged:
+        flagged.append("A style governs how you write, never what you may do. See SECURITY.md.")
+        return False, "\n        ".join(flagged)
+    return True, "nothing reads like it is governing conduct"
+
+
 def self_test(payload: dict[str, Any] | None = None) -> str:
     payload = payload or {}
     checks = (
@@ -202,6 +221,7 @@ def self_test(payload: dict[str, Any] | None = None) -> str:
         ("every style composes", _check_compose),
         ("hook scripts and registration", _check_hooks),
         ("injection budget", _check_budget),
+        ("styles govern prose, not permissions", _check_guard),
     )
     lines = ["StyleLatch self-test", ""]
     failed = 0

@@ -32,10 +32,32 @@ Concretely, StyleLatch will not accept a built-in style that:
 says so explicitly — it never suppresses a required confirmation, a hard
 blocker, or an unauthorized destructive action.
 
+## The guard
+
+`::test` reviews every style file it can see for language that reads like an
+instruction about *conduct* rather than *prose* — skipping a confirmation,
+reporting a pass that did not happen, overriding the operator's instructions,
+relaxing a safety rule. Latching such a style prints the same warning.
+
+Two things it deliberately is not:
+
+- **It does not block.** The model's own training is the real defence; a
+  substring search is a hint. Refusing on a regular expression would produce
+  false confidence and would eventually reject somebody's legitimate style.
+- **It is tuned against false positives, not for coverage.** A warning that
+  fires on a reasonable style teaches people to ignore warnings, and then the
+  mechanism is worth nothing. "Without asking" is not a pattern; "without
+  asking for permission" is. `tests/test_guard.py` holds a list of innocent
+  prose rules that must never trip it, and that list is the real test.
+
+CI asserts that no style shipped with StyleLatch trips its own guard.
+
 ## Trust boundaries
 
 - Style files are executable prose. Treat a third-party style the way you
-  would treat a third-party shell script: read it before you latch it.
+  would treat a third-party shell script: read it before you latch it. A style
+  can arrive by cloning a repository with a `.stylelatch/` directory in it,
+  which is exactly why the guard speaks up at latch time.
 - State lives outside the plugin root and is plain JSON and Markdown owned by
   the invoking user. StyleLatch never writes outside its state directory.
 - Hooks are stdlib-only Python with no network access and no subprocess calls.

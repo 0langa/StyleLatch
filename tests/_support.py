@@ -24,6 +24,7 @@ sys.path.insert(0, str(HOOKS))
 import _adherence  # noqa: E402  -- must follow the sys.path line above
 import _diagnostics  # noqa: E402
 import _directives  # noqa: E402
+import _guard  # noqa: E402
 import _style  # noqa: E402
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "_adherence",
     "_diagnostics",
     "_directives",
+    "_guard",
     "_style",
 ]
 
