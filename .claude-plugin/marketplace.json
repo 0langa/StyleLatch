@@ -1,16 +1,21 @@
 {
-  "name": "stylelatch-dev",
-  "description": "Local development marketplace for StyleLatch.",
+  "name": "stylelatch",
+  "description": "StyleLatch, installable straight from its own repository.",
   "owner": {
-    "name": "0langa"
+    "name": "0langa",
+    "url": "https://github.com/0langa"
   },
   "plugins": [
     {
       "name": "stylelatch",
       "source": "./",
       "displayName": "StyleLatch",
-      "description": "Switchable communication styles for Claude Code, enforced by hooks.",
-      "version": "0.1.0"
+      "description": "Switchable output styles for Codex and Claude Code, switched from the chat with ::",
+      "version": "0.1.0",
+      "license": "MIT",
+      "homepage": "https://github.com/0langa/StyleLatch",
+      "repository": "https://github.com/0langa/StyleLatch",
+      "keywords": ["output-style", "communication", "hooks", "skills"]
     }
   ]
 }

@@ -2,7 +2,13 @@
   "name": "stylelatch",
   "displayName": "StyleLatch",
   "version": "0.1.0",
-  "description": "Switchable communication styles for Codex, enforced by hooks.",
+  "description": "Switchable output styles, enforced by hooks and switched from the chat with ::",
+  "author": {
+    "name": "0langa",
+    "url": "https://github.com/0langa"
+  },
+  "homepage": "https://github.com/0langa/StyleLatch",
+  "repository": "https://github.com/0langa/StyleLatch",
   "license": "MIT",
-  "keywords": ["output-style", "communication", "hooks", "codex"]
+  "keywords": ["output-style", "communication", "hooks", "skills", "codex"]
 }

@@ -23,9 +23,9 @@ The terminal stops being a user-facing surface. Everything moves to `::`.
 - [x] Debug mode expires on its own — on session change, on a turn budget, and
       on a wall-clock TTL, whichever comes first.
 - [x] Forgiving directive parsing, and a "did you mean" for near misses.
-- [ ] A skill and a slash command, so the surface is discoverable by somebody
+- [x] A skill and a slash command, so the surface is discoverable by somebody
       who does not already know the `::` grammar.
-- [ ] Documentation split out of the README.
+- [x] Documentation split out of the README.
 
 ## v0.3.0 — styles that are yours
 
@@ -52,10 +52,10 @@ Injection is invisible by design, which makes failure invisible too.
 
 ## v0.5.0 — a plugin, not a script folder
 
-- [ ] A skill that teaches the agent to author and validate a style properly,
+- [x] A skill that teaches the agent to author and validate a style properly,
       so a user can say "make me a style for code review" and get a good one.
 - [ ] Codex parity verified inside a real Codex session, not only by docs.
-- [ ] Documentation split out of the README: architecture, authoring, and a
+- [x] Documentation split out of the README: architecture, authoring, and a
       provider capability matrix.
 
 ## Later, and deliberately unscheduled

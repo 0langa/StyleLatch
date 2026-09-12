@@ -33,12 +33,13 @@ as a local plugin. It carries its own marketplace manifest:
 
 ```bash
 claude plugin marketplace add /path/to/StyleLatch
-claude plugin install stylelatch@stylelatch-dev
+claude plugin install stylelatch@stylelatch
 ```
 
 The installed copy is a snapshot, not a link. After changing anything under
-`hooks/` or `styles/`, run `claude plugin update stylelatch@stylelatch-dev`
-and start a new session.
+`hooks/`, `styles/`, `skills/` or `commands/`, run
+`claude plugin update stylelatch@stylelatch` and start a new session. `::test`
+reports which of the two you are running, so you never have to guess.
 
 ## What good looks like here
 
@@ -56,6 +57,12 @@ to a path, follow a reference, or merge anything itself.
 
 **Stdlib only.** No third-party imports in `hooks/` or `styles/`. StyleLatch
 runs inside somebody else's Python, on a machine you cannot see.
+
+**Three manifests stay in agreement.** `plugin.json` (portable spec),
+`.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` describe the same
+plugin. `tests/test_packaging.py` is the only thing stopping them drifting, so
+bump all of them together. The portable schema permits no fields outside its
+own list — a stray key is invalid, not ignored.
 
 **Evidence over assertion.** "Should work" is not verification. The repo ships
 `::test canary` and `::test verify` precisely because a model's account of its
