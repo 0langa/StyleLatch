@@ -100,6 +100,11 @@ a confirmation, suppress an error, hide what was not verified, or let the model
 claim success without evidence is a bug, and it will be rejected as a built-in.
 See [SECURITY.md](../SECURITY.md).
 
+`::test` looks for exactly that language and warns when it finds it, both in
+the report and at the moment such a style is latched. It warns rather than
+refuses — the model's own training is the real defence — and it is tuned so
+that ordinary prose rules never trip it.
+
 `silent-run` is the instructive edge: it suppresses **narration** between tool
 calls, and it says in its own text that it never suppresses a required
 confirmation, a hard blocker, or an unauthorised destructive action. A style

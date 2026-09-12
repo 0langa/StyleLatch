@@ -168,6 +168,12 @@ Do not repeat it in this one.
                broke: wrote "let me know if"; a 31-word sentence (max 25)
 ```
 
+`::test` also reviews every style it can see for language that governs conduct
+rather than prose — skipping a confirmation, reporting a pass that did not
+happen, overriding the operator's instructions. It warns; it never blocks, and
+it is tuned so that a reasonable style never trips it. See
+[SECURITY.md](SECURITY.md).
+
 Three limits, stated plainly. Only mechanical rules can be checked — *name the
 mechanism, not the vibe* is not one, and is not meant to be. Code is stripped
 before prose rules run, so a sentence-length rule never fires on a shell

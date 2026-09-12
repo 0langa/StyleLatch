@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- A guard that reviews every style for language governing *conduct* rather
+  than *prose* — skipping a confirmation, reporting a pass that did not happen,
+  overriding the operator's instructions, relaxing a safety rule. `::test`
+  reports it, and latching such a style prints the same warning.
+
+  It warns and never blocks: the model's own training is the real defence, and
+  refusing on a regular expression would produce false confidence. It is tuned
+  against false positives rather than for coverage, because a warning that
+  fires on a reasonable style teaches people to ignore warnings. CI asserts
+  that no style StyleLatch ships trips its own guard.
 
 ## [0.3.0] - 2026-09-12
 

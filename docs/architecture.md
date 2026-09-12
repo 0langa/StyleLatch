@@ -178,6 +178,7 @@ hooks/scripts/
   _directives.py         parsing and dispatch for ::                   (the controller)
   _diagnostics.py        self-test, status, debug mode, canary, verify
   _adherence.py          the check language, evaluation, and the record
+  _guard.py              looks for a style governing conduct rather than prose
   session_start.py       layer 2 entrypoint
   user_prompt_submit.py  layer 3 entrypoint
   stop.py                layer 4 entrypoint
