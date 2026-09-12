@@ -35,13 +35,18 @@ TEST_WORDS = ("test", "testlatch", "debug", "diag", "doctor", "selftest")
 # --------------------------------------------------------------------------
 
 
+def _row(entry: dict) -> str:
+    # Only a style that did not come with the plugin gets a source marker, so
+    # the common case stays quiet and an override is impossible to miss.
+    mark = "" if entry["source"] == "built-in" else f"[{entry['source']}] "
+    return f"  {entry['id']:>3}  {entry['name']:<16}{mark}{_summarize(entry['nudge'])}"
+
+
 def catalog_text() -> str:
     lines = ["StyleLatch", "", "PROFILES (pick one)"]
-    for entry in _style.unique(_style.profiles()):
-        lines.append(f"  {entry['id']:>3}  {entry['name']:<16}{_summarize(entry['nudge'])}")
+    lines += [_row(entry) for entry in _style.unique(_style.profiles())]
     lines += ["", "MODIFIERS (stack with +)"]
-    for entry in _style.unique(_style.modifiers()):
-        lines.append(f"  {entry['id']:>3}  {entry['name']:<16}{_summarize(entry['nudge'])}")
+    lines += [_row(entry) for entry in _style.unique(_style.modifiers())]
 
     state = _style.load_state()
     lines += [
@@ -56,6 +61,28 @@ def catalog_text() -> str:
         "  ::test                  check StyleLatch itself",
         "  ::?                     this list",
     ]
+
+    shadowed = [
+        entry
+        for kind in ("PROFILES", "MODIFIERS")
+        for entry in _style.collect(kind)
+        if entry["shadowed_by"] is not None
+    ]
+    if shadowed:
+        lines += ["", "SHADOWED (a more specific source won)"]
+        for entry in shadowed:
+            winner = entry["shadowed_by"]
+            lines.append(
+                f"  {entry['name']} from {entry['source']} is hidden by the {winner['source']} one"
+            )
+
+    lines += ["", "Styles are read from, most specific first:"]
+    for source, root in _style.style_roots():
+        count = len(list((root / "PROFILES").glob("*.md"))) if (root / "PROFILES").is_dir() else 0
+        count += (
+            len(list((root / "MODIFIERS").glob("*.md"))) if (root / "MODIFIERS").is_dir() else 0
+        )
+        lines.append(f"  {source:<9} {root}  ({count or 'empty'})")
     return "\n".join(lines)
 
 

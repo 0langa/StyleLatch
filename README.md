@@ -163,13 +163,25 @@ per-turn nudge). Writes are atomic, so a hook never reads half a file.
 
 ---
 
-## Add a style
+## Write your own style
 
-Drop a file in `styles/PROFILES/` or `styles/MODIFIERS/`:
+Styles come from three places, most specific first:
+
+| Source | Where | For |
+|---|---|---|
+| project | `<repo>/.stylelatch/styles/` | The voice a repository agreed on. Commit it. |
+| user | `$STYLELATCH_HOME/styles/` | Yours. Survives every plugin update. |
+| built-in | `<plugin>/styles/` | Ships with StyleLatch. Replaced on update. |
+
+First source wins on a name or id collision, so putting an `eli5.md` in your
+user directory replaces the built-in one everywhere. That is the point. `::?`
+lists what was shadowed and by whom, so an override is never a mystery.
+
+Drop a file in `PROFILES/` or `MODIFIERS/` under any of those roots:
 
 ```markdown
 ---
-id: "07"
+id: "50"
 name: your-name
 nudge: The 30-word version, injected every turn. Keep it sharp.
 ---
@@ -177,12 +189,13 @@ nudge: The 30-word version, injected every turn. Keep it sharp.
 The full rules. This text lands verbatim in ACTIVE.md.
 ```
 
-`nudge` is required on profiles, and the test suite enforces it. Write rules a
-model can follow rather than a mood it should absorb: *two sentences maximum*
-beats *be concise*.
+`nudge` is required on profiles, and `::test` fails if one is missing. Write
+rules a model can follow rather than a mood it should absorb: *two sentences
+maximum* beats *be concise*.
 
-Styles currently live inside the plugin, which means an update overwrites them.
-A user-owned style directory is the next thing on the roadmap.
+`::?` prints the exact directories, so you never have to guess where to put the
+file. Nothing is created for you — an empty directory you did not ask for is
+clutter, and `::?` naming the path is enough.
 
 ---
 

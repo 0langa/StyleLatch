@@ -32,8 +32,8 @@ The terminal stops being a user-facing surface. Everything moves to `::`.
 Today a style lives inside the plugin, which means an update overwrites it.
 That has to stop before anyone invests in writing one.
 
-- [ ] Three style sources, resolved in order: user (`$STYLELATCH_HOME/styles`),
-      project (`.stylelatch/styles` in the repo), then the built-ins.
+- [x] Three style sources, resolved in order: project (`.stylelatch/styles`
+      in the repo), user (`$STYLELATCH_HOME/styles`), then the built-ins.
 - [ ] A project-scoped latch, so `terse` in one repo does not follow you into
       every other session.
 - [ ] Session-scoped and one-shot latches. `::terse!` for exactly this turn.

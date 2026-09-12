@@ -38,6 +38,9 @@ def read_payload() -> dict:
 
 
 def build(payload: dict) -> list[str]:
+    # Project-scoped styles live next to the code they apply to, so the
+    # hook has to know which project this invocation belongs to.
+    _style.set_project_hint(payload.get("cwd") or payload.get("workspace"))
     pieces = []
     if _style.is_active():
         document = _style.read_active()

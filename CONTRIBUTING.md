@@ -63,7 +63,12 @@ own context is not evidence.
 
 ## Adding a style
 
-Drop a file into `styles/PROFILES/` or `styles/MODIFIERS/`:
+A style you are writing for yourself belongs in `$STYLELATCH_HOME/styles/`, and
+one for a single repository belongs in that repository's `.stylelatch/styles/`.
+Neither needs a pull request. Send one here only for a style that earns its
+place as a **built-in**: broadly useful, and not a personal preference.
+
+Drop the file into `styles/PROFILES/` or `styles/MODIFIERS/`:
 
 ```markdown
 ---
