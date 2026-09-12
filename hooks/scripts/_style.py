@@ -234,9 +234,14 @@ def nudge_text() -> str:
     return f"{head} {nudge}".strip() if nudge else head
 
 
+# Keys the state file carries that are not part of the latched style, and so
+# must survive a switch. Debug mode outliving a "::terse" is the whole point.
+CARRIED_KEYS = ("debug", "restore")
+
+
 def write_state(result: dict[str, Any], enabled: bool = True) -> None:
-    target = state_dir()
-    target.mkdir(parents=True, exist_ok=True)
+    carried = {key: value for key, value in load_state().items() if key in CARRIED_KEYS}
+    state_dir().mkdir(parents=True, exist_ok=True)
     _atomic_write(active_path(), result["document"])
     payload = {
         "enabled": enabled,
@@ -245,14 +250,20 @@ def write_state(result: dict[str, Any], enabled: bool = True) -> None:
         "modifiers": result["modifiers"],
         "nudge": result["nudge"],
     }
-    _atomic_write(state_path(), json.dumps(payload, indent=2) + "\n")
+    payload.update(carried)
+    save_state_raw(payload)
+
+
+def save_state_raw(state: dict[str, Any]) -> None:
+    """Persist the state dictionary exactly as given. Callers own its shape."""
+    state_dir().mkdir(parents=True, exist_ok=True)
+    _atomic_write(state_path(), json.dumps(state, indent=2) + "\n")
 
 
 def disable() -> None:
     state = load_state()
     state["enabled"] = False
-    state_dir().mkdir(parents=True, exist_ok=True)
-    _atomic_write(state_path(), json.dumps(state, indent=2) + "\n")
+    save_state_raw(state)
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -283,22 +294,13 @@ def quiet() -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# directives  --  the in-chat switch surface
+# payload
 # --------------------------------------------------------------------------
 #
-# Typing "::eli5+red-balls" in the chat latches that style. No terminal, no
-# new session, no model involved: this is a regex and a file write.
-#
-# The prefix is "::" on purpose. "#" is Claude Code's add-to-memory shortcut
-# and "/" is slash-command territory in both apps; the app would eat either
-# before the hook ever saw it.
+# Claude Code sends the message as "prompt". Codex's field name is not
+# documented, so the plausible ones are tried rather than assumed, and
+# "::test on" exists to identify it for real when a provider changes.
 
-DIRECTIVE_PREFIX = "::"
-_DIRECTIVE = re.compile(r"\A[ \t]*::([A-Za-z0-9_?+-]+)[ \t]*(.*)\Z", re.DOTALL)
-
-# Field names to try when digging the prompt text out of a hook payload.
-# Claude Code sends "prompt". Codex's field name is not documented, so try
-# the plausible ones rather than assuming.
 _PROMPT_FIELDS = ("prompt", "user_prompt", "userPrompt", "text", "message", "input")
 
 
@@ -308,85 +310,3 @@ def prompt_from_payload(payload: dict[str, Any]) -> str:
         if isinstance(value, str) and value.strip():
             return value
     return ""
-
-
-def parse_directive(prompt: str) -> tuple[str, str] | None:
-    """Return (token, rest) when the prompt opens with a directive, else None.
-
-    Anchored at the start so talking *about* "::" mid-sentence never fires it.
-    """
-    match = _DIRECTIVE.match(prompt or "")
-    if not match:
-        return None
-    return match.group(1).lower(), match.group(2).strip()
-
-
-def catalog_text() -> str:
-    lines = ["StyleLatch styles.", "", "PROFILES (pick one):"]
-    for entry in unique(profiles()):
-        lines.append(f"  {entry['id']}  {entry['name']}")
-    lines += ["", "MODIFIERS (stack with +):"]
-    for entry in unique(modifiers()):
-        lines.append(f"  {entry['id']}  {entry['name']}")
-    state = load_state()
-    current = state.get("label", "none") if state.get("enabled") else "none"
-    lines += [
-        "",
-        f"Latched now: {current}",
-        "",
-        "Switch with ::<profile>[+<modifier>...]   e.g. ::eli5+red-balls",
-        "Ids work too: ::01+04      Turn off: ::off      This list: ::?",
-    ]
-    return "\n".join(lines)
-
-
-def apply_directive(token: str, rest: str, payload: dict[str, Any]) -> str:
-    """Run a directive and return the text to inject. Never raises."""
-    bare = not rest
-
-    if token in ("?", "help", "list", "styles"):
-        return catalog_text() + _reply_rule(bare)
-
-    if token in ("off", "none", "stop"):
-        disable()
-        return "StyleLatch: off. Default output behavior from now on." + _reply_rule(bare)
-
-    if token == "debug":
-        # Codex's prompt field name is undocumented. This prints what the
-        # payload actually carries so it can be identified once, for real.
-        keys = ", ".join(sorted(payload)) or "(empty payload)"
-        found = "yes" if prompt_from_payload(payload) else "NO"
-        return (
-            f"StyleLatch debug\n  payload keys: {keys}\n"
-            f"  prompt text found: {found}\n  state dir: {state_dir()}" + _reply_rule(bare)
-        )
-
-    parts = [part for part in token.split("+") if part]
-    try:
-        result = compose(parts[0], parts[1:])
-    except (KeyError, IndexError) as exc:
-        return f"StyleLatch: {exc}. Nothing changed.\n\n" + catalog_text() + _reply_rule(bare)
-
-    write_state(result)
-    summary = f"StyleLatch: latched {result['label']} ({result['profile']})"
-    if result["modifiers"]:
-        summary += " + " + ", ".join(result["modifiers"])
-
-    if bare:
-        return (
-            f"{summary}. It is in force from this message on.\n\n"
-            f"{result['document']}\n"
-            "The user sent only a switch, no task. Reply with exactly "
-            f'"latched: {result["label"]}" and nothing else.'
-        )
-    return (
-        f"{summary}. It is in force from this message on. Apply it to the "
-        "rest of this very message, which is the user's actual request.\n\n"
-        f"{result['document']}"
-    )
-
-
-def _reply_rule(bare: bool) -> str:
-    if not bare:
-        return ""
-    return "\n\nThe user sent only this directive. Answer with this information and nothing else."
