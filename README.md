@@ -17,7 +17,7 @@ restart: the switch happens inside a hook that was going to fire anyway.
 It also ships a skill, so an agent can help you write a style of your own
 rather than only wear one.
 
-Status: v0.2.0.
+Status: v0.2.1.
 
 ---
 
@@ -208,7 +208,7 @@ styles/MODIFIERS/      single rules that stack onto a voice
 hooks/hooks.json       layer 2 + layer 3 registration
 hooks/scripts/         _style.py, _directives.py, _diagnostics.py, two hook entrypoints
 skills/stylelatch/     the skill both providers auto-discover
-commands/stylelatch.md the Claude Code slash command
+commands/styles.md    the Claude Code slash command
 AGENTS_SNIPPET.md      the one line for layer 1
 docs/                  architecture, style authoring, provider matrix
 tests/                 stdlib unittest, no pytest needed

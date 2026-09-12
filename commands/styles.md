@@ -1,5 +1,5 @@
 ---
-name: stylelatch
+name: styles
 description: Show every StyleLatch style, what is latched right now, and the :: directives that switch it.
 allowed-tools: Bash(python3 -S *), Bash(py -3 -S *)
 disable-model-invocation: true

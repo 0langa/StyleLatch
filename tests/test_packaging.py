@@ -160,7 +160,7 @@ class TestSkill(unittest.TestCase):
 
 
 class TestCommand(unittest.TestCase):
-    PATH = ROOT / "commands" / "stylelatch.md"
+    PATH = ROOT / "commands" / "styles.md"
 
     def setUp(self) -> None:
         self.meta, self.body = _style.parse_frontmatter(self.PATH.read_text(encoding="utf-8"))
@@ -169,13 +169,39 @@ class TestCommand(unittest.TestCase):
         self.assertTrue(self.PATH.is_file())
 
     def test_it_declares_a_name_and_description(self) -> None:
-        self.assertEqual(self.meta.get("name"), "stylelatch")
+        self.assertEqual(self.meta.get("name"), "styles")
         self.assertTrue(self.meta.get("description"))
 
     def test_it_points_at_the_renderer_through_the_plugin_root(self) -> None:
         # A hardcoded path works in a checkout and breaks in an install.
         self.assertIn("${CLAUDE_PLUGIN_ROOT}", self.body)
         self.assertIn("hooks/scripts/_show.py", self.body)
+
+
+class TestNoNameCollisions(unittest.TestCase):
+    """Claude Code lists skills and commands in one inventory.
+
+    Two components sharing an invocation name means one shadows the other in
+    the "/" menu -- which is exactly what shipping skills/stylelatch alongside
+    commands/stylelatch.md did in v0.2.0.
+    """
+
+    def _names(self, folder: str, pattern: str) -> list[str]:
+        names = []
+        for path in sorted((ROOT / folder).glob(pattern)):
+            meta, _ = _style.parse_frontmatter(path.read_text(encoding="utf-8"))
+            names.append(meta.get("name") or path.stem)
+        return names
+
+    def test_no_command_shares_a_name_with_a_skill(self) -> None:
+        skills = self._names("skills", "*/SKILL.md")
+        commands = self._names("commands", "*.md")
+        self.assertTrue(skills and commands)
+        self.assertEqual(set(skills) & set(commands), set())
+
+    def test_names_are_unique_within_each_kind(self) -> None:
+        for names in (self._names("skills", "*/SKILL.md"), self._names("commands", "*.md")):
+            self.assertEqual(len(names), len(set(names)), names)
 
 
 class TestRenderer(StyleLatchTestCase):

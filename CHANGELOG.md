@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.2.1] - 2026-09-12
+
+### Fixed
+
+- The slash command is now `/styles`, not `/stylelatch`. Claude Code lists
+  skills and commands in one inventory, so shipping `skills/stylelatch`
+  alongside `commands/stylelatch.md` registered two components under the same
+  invocation name and one shadowed the other in the `/` menu. A test now
+  refuses any command that shares a name with a skill.
+
 ## [0.2.0] - 2026-09-12
 
 ### Added
@@ -100,6 +110,7 @@ Nothing yet.
 - Diagnostics: a two-token canary, and a session-log scanner that proves
   injection from the host's own transcript rather than the model's testimony.
 
-[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/0langa/StyleLatch/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/0langa/StyleLatch/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/0langa/StyleLatch/releases/tag/v0.1.0
