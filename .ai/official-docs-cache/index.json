@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "notes": [
+    {
+      "provider": "codex",
+      "topic": "hooks-events-and-additional-context",
+      "path": ".ai/official-docs-cache/notes/codex-hooks-output.md",
+      "checked_at": "2026-09-12",
+      "stability": "likely-changing",
+      "fresh_until": "2026-09-19",
+      "sources": [
+        "https://learn.chatgpt.com/docs/hooks"
+      ]
+    },
+    {
+      "provider": "claude-code",
+      "topic": "hooks-sessionstart-matchers-and-additional-context",
+      "path": ".ai/official-docs-cache/notes/claude-code-hooks-output.md",
+      "checked_at": "2026-09-12",
+      "stability": "likely-changing",
+      "fresh_until": "2026-09-19",
+      "sources": [
+        "https://code.claude.com/docs/en/hooks"
+      ]
+    }
+  ]
+}

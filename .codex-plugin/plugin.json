@@ -1,0 +1,8 @@
+{
+  "name": "stylelatch",
+  "displayName": "StyleLatch",
+  "version": "0.1.0",
+  "description": "Switchable communication styles for Codex, enforced by hooks.",
+  "license": "MIT",
+  "keywords": ["output-style", "communication", "hooks", "codex"]
+}

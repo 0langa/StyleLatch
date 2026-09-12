@@ -1,0 +1,9 @@
+# Normalize everything to LF in the repository. StyleLatch is developed on
+# Windows but its hooks are read by POSIX shells and Python on every platform.
+* text=auto eol=lf
+
+# Never touch binaries.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary

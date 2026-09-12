@@ -1,0 +1,16 @@
+{
+  "name": "stylelatch-dev",
+  "description": "Local development marketplace for StyleLatch.",
+  "owner": {
+    "name": "0langa"
+  },
+  "plugins": [
+    {
+      "name": "stylelatch",
+      "source": "./",
+      "displayName": "StyleLatch",
+      "description": "Switchable communication styles for Claude Code, enforced by hooks.",
+      "version": "0.1.0"
+    }
+  ]
+}
