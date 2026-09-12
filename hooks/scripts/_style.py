@@ -452,7 +452,7 @@ def nudge_text() -> str:
 
 # Keys the state file carries that belong to no scope, and so must survive
 # every latch, switch and clear. Debug mode outliving a "::terse" is the point.
-CARRIED_KEYS = ("debug", "restore")
+CARRIED_KEYS = ("debug", "restore", "history")
 
 
 def save_state_raw(state: dict[str, Any]) -> None:
@@ -468,6 +468,25 @@ def _prune(bucket: dict[str, Any]) -> dict[str, Any]:
     return dict(keep[:MAX_REMEMBERED])
 
 
+# A short, bounded record of what was latched and when. Enough to answer
+# "what did I have on yesterday" and "what did I switch away from", and small
+# enough that nobody has to think about it growing.
+MAX_HISTORY = 30
+
+
+def _remember(state: dict[str, Any], action: str, scope: str, **fields: Any) -> None:
+    entry = {"at": time.time(), "action": action, "scope": scope}
+    entry.update(fields)
+    history = [h for h in state.get("history", []) if isinstance(h, dict)]
+    history.append(entry)
+    state["history"] = history[-MAX_HISTORY:]
+
+
+def history() -> list[dict[str, Any]]:
+    """Most recent first."""
+    return list(reversed(load_scoped().get("history", [])))
+
+
 def set_latch(scope: str, profile: str, modifiers: list[str]) -> None:
     state = load_scoped()
     bucket = state["latches"].setdefault(scope, {})
@@ -477,24 +496,30 @@ def set_latch(scope: str, profile: str, modifiers: list[str]) -> None:
         "at": time.time(),
     }
     state["latches"][scope] = _prune(bucket)
+    _remember(state, "latch", scope, profile=profile, modifiers=list(modifiers))
     save_state_raw(state)
 
 
 def clear_latch(scope: str) -> bool:
     """Remove the latch for one scope. Returns whether there was one."""
     state = load_scoped()
-    removed = state["latches"].get(scope, {}).pop(scope_key(scope), None) is not None
-    if removed:
-        save_state_raw(state)
-    return removed
+    removed = state["latches"].get(scope, {}).pop(scope_key(scope), None)
+    if removed is None:
+        return False
+    _remember(state, "clear", scope, profile=removed.get("profile"))
+    save_state_raw(state)
+    return True
 
 
 def clear_all_latches() -> list[str]:
     """Remove whatever is latched in every scope. Returns the scopes cleared."""
     state = load_scoped()
-    cleared = [
-        scope for scope in SCOPES if state["latches"].get(scope, {}).pop(scope_key(scope), None)
-    ]
+    cleared = []
+    for scope in SCOPES:
+        removed = state["latches"].get(scope, {}).pop(scope_key(scope), None)
+        if removed:
+            cleared.append(scope)
+            _remember(state, "clear", scope, profile=removed.get("profile"))
     state["enabled"] = False
     save_state_raw(state)
     return cleared

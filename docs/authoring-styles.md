@@ -132,6 +132,7 @@ the end of the last one. `::test` reports the real length.
 ::test          parses every file, composes every profile, fails on a
                 missing nudge or a body that will not parse
 ::<name>        latch it
+::<name>! ...   try it on one message without latching it
 ::status        confirms what is latched and what it costs per turn
 ```
 

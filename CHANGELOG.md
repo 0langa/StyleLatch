@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- One-shot latches: `::terse! explain this regex` applies the rules to that
+  message and latches nothing, so trying a style — or asking for one plain
+  answer — no longer costs you the style you actually work in.
+- A bounded record of what was latched and when. `::status` shows the last
+  five, so "what did I switch away from" is answerable.
 
 ## [0.2.1] - 2026-09-12
 

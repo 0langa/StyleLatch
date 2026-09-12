@@ -269,6 +269,113 @@ class TestSync(ScopeTestCase):
         self.assertNotIn("/p/0", kept)
 
 
+class TestOneShot(ScopeTestCase):
+    """ "::terse! do this" applies the rules now and latches nothing.
+
+    "Answer this one in plain English" is a common thing to want, and it
+    should not cost you the style you actually work in.
+    """
+
+    def test_the_parser_keeps_the_bang(self) -> None:
+        self.assertEqual(_directives.parse("::terse!"), ("terse!", ""))
+        self.assertEqual(_directives.parse("::terse! fix it"), ("terse!", "fix it"))
+        self.assertEqual(_directives.parse("::eli5+no-preamble!"), ("eli5+no-preamble!", ""))
+
+    def test_it_injects_the_rules(self) -> None:
+        text = self.context("::terse! explain this regex")
+        self.assertIn("for this one message only", text)
+        self.assertIn("Maximum signal", text)
+        self.assertIn("this message alone", text)
+
+    def test_it_latches_nothing(self) -> None:
+        self.context("::terse! explain this regex")
+        self.assertIsNone(_style.effective())
+        self.assertFalse(_style.is_active())
+
+    def test_it_leaves_an_existing_latch_alone(self) -> None:
+        self.context("::eli5")
+        self.context("::silent-run! run the build")
+        scope, latch = _style.effective()
+        self.assertEqual((scope, latch["profile"]), ("global", "eli5"))
+
+    def test_it_says_what_comes_back(self) -> None:
+        self.context("::eli5")
+        text = self.context("::silent-run! run the build")
+        self.assertIn("The 01 latch is untouched", text)
+
+    def test_it_stacks_modifiers(self) -> None:
+        text = self.context("::eli5+no-preamble! explain this")
+        self.assertIn("Start with the substance", text)
+
+    def test_a_bare_one_shot_has_nothing_to_apply_to(self) -> None:
+        text = self.context("::terse!")
+        self.assertIn("carried no task", text)
+        self.assertIsNone(_style.effective())
+
+    def test_an_unknown_one_shot_changes_nothing(self) -> None:
+        self.context("::eli5")
+        text = self.context("::nonsense-zz! do it")
+        self.assertIn("Nothing changed", text)
+        self.assertEqual(_style.effective()[1]["profile"], "eli5")
+
+    def test_it_does_not_need_an_addressable_scope(self) -> None:
+        # A one-shot stores nothing, so "no project here" is irrelevant to it.
+        os.environ.pop("STYLELATCH_PROJECT")
+        with tempfile.TemporaryDirectory() as bare:
+            text = self.context("::terse! do the thing", cwd=bare)
+            self.assertIn("for this one message only", text)
+
+
+class TestHistory(ScopeTestCase):
+    def test_it_starts_empty(self) -> None:
+        self.assertEqual(_style.history(), [])
+
+    def test_a_latch_is_recorded_most_recent_first(self) -> None:
+        self.context("::terse")
+        self.context("::eli5 @project")
+        past = _style.history()
+        self.assertEqual(past[0]["profile"], "eli5")
+        self.assertEqual(past[0]["scope"], "project")
+        self.assertEqual(past[1]["profile"], "terse")
+
+    def test_clearing_is_recorded_too(self) -> None:
+        self.context("::terse")
+        self.context("::off")
+        self.assertEqual(_style.history()[0]["action"], "clear")
+
+    def test_modifiers_are_remembered(self) -> None:
+        self.context("::eli5+no-preamble")
+        self.assertEqual(_style.history()[0]["modifiers"], ["no-preamble"])
+
+    def test_a_one_shot_is_not_history(self) -> None:
+        # It changed nothing, so it is not part of the record of what changed.
+        self.context("::terse! do it")
+        self.assertEqual(_style.history(), [])
+
+    def test_it_is_bounded(self) -> None:
+        state = _style.load_scoped()
+        state["history"] = [
+            {"at": float(i), "action": "latch", "scope": "global", "profile": "terse"}
+            for i in range(_style.MAX_HISTORY + 20)
+        ]
+        _style.save_state_raw(state)
+        _style.set_latch("global", "eli5", [])
+        self.assertEqual(len(_style.load_scoped()["history"]), _style.MAX_HISTORY)
+        self.assertEqual(_style.history()[0]["profile"], "eli5")
+
+    def test_it_survives_a_latch_and_a_clear(self) -> None:
+        self.context("::terse")
+        self.context("::eli5")
+        self.context("::off")
+        self.assertEqual(len(_style.history()), 3)
+
+    def test_status_shows_it(self) -> None:
+        self.context("::terse")
+        report = _diagnostics.status({})
+        self.assertIn("recently", report)
+        self.assertIn("latched terse (global)", report)
+
+
 class TestStatus(ScopeTestCase):
     def test_it_says_when_nothing_is_latched(self) -> None:
         self.assertIn("nothing is latched", _diagnostics.status({}))

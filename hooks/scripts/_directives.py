@@ -58,6 +58,7 @@ def catalog_text() -> str:
         "  ::eli5+no-preamble      stack modifiers onto it",
         "  ::01+02                 ids work too",
         "  ::terse fix the parser  latch it and do the task in one message",
+        "  ::terse! just this one  apply it to this message only, latch nothing",
         "  ::terse @project        only in this repository",
         "  ::terse @session        only in this conversation",
         "  ::off                   back to default behaviour",
@@ -146,6 +147,10 @@ def parse(prompt: str) -> tuple[str, str] | None:
     for char in body:
         if char.isalnum() or char in "_+-?":
             token_chars.append(char)
+        elif char == "!" and token_chars:
+            # A trailing "!" means "this turn only". It closes the token.
+            token_chars.append(char)
+            break
         else:
             break
     token = "".join(token_chars)
@@ -334,13 +339,20 @@ def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
     if token in TEST_WORDS:
         return _handle_test(rest, payload)
 
+    # A trailing "!" means this turn only: apply the rules now, latch nothing.
+    # "Answer this one in plain English" is a common thing to want, and it
+    # should not cost you the style you actually work in.
+    one_shot = token.endswith("!")
+    token = token.rstrip("!")
+
     scope, task, bad = split_scope(rest)
     if bad:
         return _scope_problem(bad) + _only_this(bare)
     scope = scope or "global"
-    problem = _unaddressable(scope)
-    if problem:
-        return problem + _only_this(bare)
+    if not one_shot:
+        problem = _unaddressable(scope)
+        if problem:
+            return problem + _only_this(bare)
 
     parts = [part for part in token.split("+") if part]
     try:
@@ -352,6 +364,27 @@ def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
         if hint:
             head += " " + hint
         return head + "\n\n" + catalog_text() + _only_this(bare)
+
+    if one_shot:
+        if not task:
+            return (
+                f"StyleLatch: '{token}!' means 'this message only', but this "
+                "message carried no task, so there is nothing to apply it to. "
+                "Nothing changed. Write the request after it, or drop the '!' "
+                "to latch it." + _only_this(True)
+            )
+        latched = _style.load_state()
+        back = (
+            f" The {latched.get('label')} latch is untouched and comes back next message."
+            if latched.get("enabled")
+            else ""
+        )
+        return (
+            f"StyleLatch: {result['label']} ({result['profile']}) for this one "
+            f"message only.{back}\n\n{result['document']}\n"
+            "Apply the rules above to this message and this message alone. "
+            "Nothing was latched, so do not report a style change."
+        )
 
     _style.set_latch(scope, parts[0], parts[1:])
     _style.sync(force=True)
