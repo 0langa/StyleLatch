@@ -56,7 +56,102 @@ def state_dir() -> Path:
     return (Path.home() / ".stylelatch").resolve()
 
 
+def active_path() -> Path:
+    return state_dir() / ACTIVE_FILE
+
+
+def state_path() -> Path:
+    return state_dir() / STATE_FILE
+
+
+# --------------------------------------------------------------------------
+# where styles come from
+# --------------------------------------------------------------------------
+#
+# Three places, most specific first. A style you wrote has to outlive a plugin
+# update, and a repository has to be able to carry the voice its contributors
+# agreed on, so the built-ins are the last word rather than the only one.
+#
+#   project    <repo>/.stylelatch/styles     committed, shared with the team
+#   user       $STYLELATCH_HOME/styles       yours, survives every update
+#   built-in   <plugin>/styles               replaced on every update
+#
+# First source wins on a name or id collision. That is deliberate: shadowing a
+# built-in is the point of having a user directory at all.
+
+PROJECT_DIRNAME = ".stylelatch"
+
+# A repository marker, or a .stylelatch directory that actually carries styles.
+# Bare ".stylelatch" is deliberately not a marker: the default state directory
+# is ~/.stylelatch, which would make the home directory a project and every
+# session in it inherit styles from there.
+_PROJECT_MARKERS = (".git", ".hg", ".jj", ".svn", f"{PROJECT_DIRNAME}/styles")
+
+_project_hint: str = ""
+
+
+def set_project_hint(path: str | None) -> None:
+    """Record the working directory the host reported for this invocation.
+
+    Hooks are not guaranteed to run with the project as their own working
+    directory, but every provider that sends a payload sends a cwd in it.
+    """
+    global _project_hint
+    _project_hint = (path or "").strip()
+
+
+def project_root() -> Path | None:
+    """The repository the current invocation belongs to, if there is one.
+
+    Walks up from the reported working directory looking for a marker. A style
+    latched in a subdirectory has to mean the same thing as one latched at the
+    top, or the feature is a trap rather than a convenience.
+    """
+    explicit = os.environ.get("STYLELATCH_PROJECT", "").strip()
+    start = explicit or _project_hint
+    try:
+        here = Path(start).expanduser().resolve() if start else Path.cwd().resolve()
+    except OSError:
+        return None
+    if explicit:
+        return here
+
+    try:
+        home = Path.home().resolve()
+    except (OSError, RuntimeError):  # pragma: no cover - no home on this host
+        home = None
+    for candidate in (here, *here.parents):
+        # A home directory is where personal styles live, never a project.
+        if home is not None and candidate == home:
+            break
+        if any((candidate / marker).exists() for marker in _PROJECT_MARKERS):
+            return candidate
+    return None
+
+
+def style_roots() -> list[tuple[str, Path]]:
+    """(label, directory) pairs in precedence order, most specific first."""
+    roots: list[tuple[str, Path]] = []
+    project = project_root()
+    if project is not None:
+        roots.append(("project", project / PROJECT_DIRNAME / "styles"))
+    roots.append(("user", state_dir() / "styles"))
+    roots.append(("built-in", plugin_root() / "styles"))
+
+    # A project whose own directory is the plugin checkout would otherwise
+    # list the built-ins twice, once under each label.
+    seen: set[Path] = set()
+    unique_roots = []
+    for label, path in roots:
+        if path in seen:
+            continue
+        seen.add(path)
+        unique_roots.append((label, path))
+    return unique_roots
+
+
 def styles_dir() -> Path:
+    """The built-in style directory. Kept for messages that name a location."""
     return plugin_root() / "styles"
 
 
@@ -66,14 +161,6 @@ def profiles_dir() -> Path:
 
 def modifiers_dir() -> Path:
     return styles_dir() / "MODIFIERS"
-
-
-def active_path() -> Path:
-    return state_dir() / ACTIVE_FILE
-
-
-def state_path() -> Path:
-    return state_dir() / STATE_FILE
 
 
 # --------------------------------------------------------------------------
@@ -100,36 +187,69 @@ def _read(path: Path) -> tuple[dict[str, str], str]:
     return parse_frontmatter(path.read_text(encoding="utf-8"))
 
 
-def _catalog(directory: Path) -> dict[str, dict[str, Any]]:
-    """Map both the numeric id and the name to each style file."""
-    found: dict[str, dict[str, Any]] = {}
+def _read_dir(directory: Path, source: str) -> list[dict[str, Any]]:
+    """Every style file in one directory, in filename order."""
     if not directory.is_dir():
-        return found
+        return []
+    entries = []
     for path in sorted(directory.glob("*.md")):
         try:
             meta, body = _read(path)
-        except OSError:
+        except (OSError, UnicodeDecodeError):
+            # An unreadable style is skipped, never fatal. ::test names it.
             continue
-        ident = meta.get("id") or path.stem.split("-", 1)[0]
-        name = meta.get("name") or path.stem.split("-", 1)[-1]
-        entry = {
-            "id": ident,
-            "name": name,
-            "nudge": meta.get("nudge", ""),
-            "body": body,
-            "path": path,
-        }
-        found[ident] = entry
-        found[name.lower()] = entry
+        entries.append(
+            {
+                "id": meta.get("id") or path.stem.split("-", 1)[0],
+                "name": meta.get("name") or path.stem.split("-", 1)[-1],
+                "nudge": meta.get("nudge", ""),
+                "body": body,
+                "path": path,
+                "source": source,
+            }
+        )
+    return entries
+
+
+def collect(kind: str) -> list[dict[str, Any]]:
+    """Every style of one kind across all sources, most specific first.
+
+    Shadowed entries stay in the list and carry "shadowed_by", so the reason a
+    style is not the one being used stays answerable instead of silent.
+    """
+    claimed: dict[str, dict[str, Any]] = {}
+    ordered: list[dict[str, Any]] = []
+    for source, root in style_roots():
+        for entry in _read_dir(root / kind, source):
+            keys = {str(entry["id"]).lower(), str(entry["name"]).lower()}
+            winner = next((claimed[key] for key in keys if key in claimed), None)
+            if winner is None:
+                for key in keys:
+                    claimed[key] = entry
+                entry["shadowed_by"] = None
+            else:
+                entry["shadowed_by"] = winner
+            ordered.append(entry)
+    return ordered
+
+
+def _catalog(kind: str) -> dict[str, dict[str, Any]]:
+    """Map both the id and the name to each style. First source wins."""
+    found: dict[str, dict[str, Any]] = {}
+    for entry in collect(kind):
+        if entry["shadowed_by"] is not None:
+            continue
+        found[str(entry["id"]).lower()] = entry
+        found[str(entry["name"]).lower()] = entry
     return found
 
 
 def profiles() -> dict[str, dict[str, Any]]:
-    return _catalog(profiles_dir())
+    return _catalog("PROFILES")
 
 
 def modifiers() -> dict[str, dict[str, Any]]:
-    return _catalog(modifiers_dir())
+    return _catalog("MODIFIERS")
 
 
 def unique(entries: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:

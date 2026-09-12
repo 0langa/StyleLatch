@@ -112,10 +112,25 @@ def _check_styles() -> tuple[bool, str]:
         for dup in sorted({i for i in ids if ids.count(i) > 1}):
             problems.append(f"duplicate {group} id '{dup}'")
 
+    counts: dict[str, int] = {}
+    shadowed = []
+    for kind in ("PROFILES", "MODIFIERS"):
+        for entry in _style.collect(kind):
+            counts[entry["source"]] = counts.get(entry["source"], 0) + 1
+            if entry["shadowed_by"] is not None:
+                shadowed.append(
+                    f"{entry['name']} ({entry['source']}) is shadowed by the "
+                    f"{entry['shadowed_by']['source']} one"
+                )
+
     summary = f"{len(profiles)} profiles, {len(modifiers)} modifiers"
+    detail = [summary, *(f"{source}: {count} file(s)" for source, count in counts.items())]
+    # Shadowing is a feature, not a fault: overriding a built-in is the whole
+    # reason a user directory exists. It is reported, never failed on.
+    detail += shadowed
     if problems:
-        return False, summary + "\n        " + "\n        ".join(problems)
-    return True, summary
+        return False, "\n        ".join(detail + problems)
+    return True, "\n        ".join(detail)
 
 
 def _check_compose() -> tuple[bool, str]:
@@ -194,14 +209,21 @@ def self_test(payload: dict[str, Any] | None = None) -> str:
 
     root = _style.plugin_root()
     state = _style.load_state()
+    project = _style.project_root()
     lines += [
         "",
         f"  plugin root   {root}",
         f"                {_install_kind(root)}",
         f"  state         {_style.state_dir()}",
+        f"  project       {project if project else '(none detected)'}",
         f"  latched       {state.get('label', '?') if state.get('enabled') else 'nothing'}",
         f"  python        {sys.version.split()[0]} on {sys.platform}",
+        "",
+        "  styles are read from, most specific first:",
     ]
+    for source, path in _style.style_roots():
+        mark = "" if path.is_dir() else "   (does not exist yet)"
+        lines.append(f"    {source:<9} {path}{mark}")
     session = _field(payload, "session_id", "sessionId")
     if session:
         lines.append(f"  session       {session}")

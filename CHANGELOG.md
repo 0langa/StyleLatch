@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Styles now come from three sources, most specific first: a project's
+  `.stylelatch/styles/`, the user's `$STYLELATCH_HOME/styles/`, and the
+  built-ins. A style you write survives a plugin update, and a repository can
+  carry the voice its contributors agreed on.
+- A shadowed style is reported rather than hidden. `::?` and `::test` both say
+  which source won and which one lost.
 - `::test`, one diagnostic entry point reachable from the chat.
   - `::test` runs every structural check and reports PASS/FAIL per component,
     including whether the provider is running an installed snapshot rather
