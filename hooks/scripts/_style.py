@@ -7,8 +7,12 @@ user's active style. Resolution order:
 
 1. $STYLELATCH_HOME                 (explicit override, wins always)
 2. $PLUGIN_DATA/stylelatch          (Codex gives plugins a writable data dir)
-3. $CLAUDE_PLUGIN_DATA/stylelatch   (same idea if Claude Code ever sets it)
+3. $CLAUDE_PLUGIN_DATA/stylelatch   (Claude Code's documented equivalent)
 4. ~/.stylelatch                    (default, works everywhere)
+
+Both providers document a writable per-plugin data directory that survives a
+plugin update, and Codex sets the CLAUDE_ names as aliases for the PLUGIN_
+ones, so checking both costs nothing and covers either host.
 """
 
 from __future__ import annotations
@@ -109,7 +113,9 @@ def project_root() -> Path | None:
     top, or the feature is a trap rather than a convenience.
     """
     explicit = os.environ.get("STYLELATCH_PROJECT", "").strip()
-    start = explicit or _project_hint
+    # The payload's cwd is the most precise answer for this invocation.
+    # CLAUDE_PROJECT_DIR is the host's own answer and a good second.
+    start = explicit or _project_hint or os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
     try:
         here = Path(start).expanduser().resolve() if start else Path.cwd().resolve()
     except OSError:

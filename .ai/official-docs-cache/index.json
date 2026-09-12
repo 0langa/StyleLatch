@@ -22,6 +22,20 @@
       "sources": [
         "https://code.claude.com/docs/en/hooks"
       ]
+    },
+    {
+      "provider": "claude-code, codex",
+      "topic": "plugin-component-layout-skills-commands-manifests",
+      "path": ".ai/official-docs-cache/notes/plugin-component-layout.md",
+      "checked_at": "2026-09-12",
+      "stability": "likely-changing",
+      "fresh_until": "2026-09-19",
+      "sources": [
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/slash-commands",
+        "https://developers.openai.com/plugins/build/plugins",
+        "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+      ]
     }
   ]
 }

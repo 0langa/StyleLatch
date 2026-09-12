@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A skill at `skills/stylelatch/`, auto-discovered by both Claude Code and
+  Codex, so an agent can help you write and validate a style of your own
+  rather than only wear one.
+- A `/stylelatch` slash command on Claude Code, for people browsing the `/`
+  menu who have not met the `::` grammar yet.
+- A portable `plugin.json` following the Agent Plugins 1.0.0 spec, alongside
+  the two provider manifests. A test keeps all three in agreement.
+- `docs/architecture.md`, `docs/authoring-styles.md` and `docs/providers.md`.
+- `CLAUDE_PROJECT_DIR` is used as a second source for project detection, behind
+  the working directory the hook payload carries.
 - Scoped latches. A latch belongs to a session, a project, or everything, and
   the most specific one that is set wins. `::terse @project` keeps a voice
   inside one repository; `::silent-run @session` dies with the conversation.

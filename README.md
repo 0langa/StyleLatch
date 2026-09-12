@@ -14,7 +14,10 @@ of files, switched by typing into the chat.
 That is the entire interface. There is no command to run and no session to
 restart: the switch happens inside a hook that was going to fire anyway.
 
-Status: v0.1.0 on the marketplace, `main` is working toward v0.2.0.
+It also ships a skill, so an agent can help you write a style of your own
+rather than only wear one.
+
+Status: v0.1.0 released, `main` is working toward v0.2.0.
 
 ---
 
@@ -200,14 +203,26 @@ reached the model, and there is nothing left to argue about.
 ## Layout
 
 ```
-styles/PROFILES/       01-eli5.md, 02-terse.md, 03-deep-technical.md, 04-silent-run.md
-styles/MODIFIERS/      01-full-paths.md, 02-no-preamble.md, 03-show-evidence.md, 04-red-balls.md
+styles/PROFILES/       the built-in voices
+styles/MODIFIERS/      single rules that stack onto a voice
 hooks/hooks.json       layer 2 + layer 3 registration
-hooks/scripts/         _style.py, _directives.py, _diagnostics.py, and the two entrypoints
+hooks/scripts/         _style.py, _directives.py, _diagnostics.py, two hook entrypoints
+skills/stylelatch/     the skill both providers auto-discover
+commands/stylelatch.md the Claude Code slash command
 AGENTS_SNIPPET.md      the one line for layer 1
+docs/                  architecture, style authoring, provider matrix
 tests/                 stdlib unittest, no pytest needed
 .ai/official-docs-cache/   dated evidence for every provider claim made here
 ```
+
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — why three layers, how state and
+  scopes work, and why every hook fails open.
+- [docs/authoring-styles.md](docs/authoring-styles.md) — writing a style that is
+  still obeyed on reply twenty.
+- [docs/providers.md](docs/providers.md) — what Codex and Claude Code each
+  provide, and what StyleLatch does when one of them does not.
 
 ---
 
@@ -270,16 +285,23 @@ clutter, and `::?` naming the path is enough.
 1. Paste the snippet from [AGENTS_SNIPPET.md](AGENTS_SNIPPET.md) into your
    global instructions file. Once, and never again — it names no profile, so
    switching styles never touches it.
-2. Install the plugin. The repo carries its own marketplace manifest:
+2. Install the plugin. The repository carries its own marketplace manifest:
 
    ```bash
    claude plugin marketplace add 0langa/StyleLatch
-   claude plugin install stylelatch@stylelatch-dev
+   claude plugin install stylelatch@stylelatch
    ```
 
 3. **Codex only:** trust the hooks once in **Settings > Coding > Hooks**.
+   Until you do, the hooks do not run at all.
 
-Then start a new session, and type `::?`.
+Then start a new session and type `::?`.
+
+The installed copy is a snapshot, not a link. After changing anything in the
+repository, `claude plugin update stylelatch@stylelatch` and start a new
+session. `::test` tells you which of the two you are running.
+
+See [docs/providers.md](docs/providers.md) for the full matrix.
 
 ---
 
