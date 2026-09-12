@@ -13,7 +13,7 @@ always after a compact. Everything here follows from taking that seriously:
 2. Make the re-injection cheap enough to afford every single turn.
 3. Put the switch where the user already is — in the chat, not in a shell.
 
-## v0.2.0 — one surface
+## v0.2.0 — one surface  ✅ shipped
 
 The terminal stops being a user-facing surface. Everything moves to `::`.
 
@@ -27,7 +27,7 @@ The terminal stops being a user-facing surface. Everything moves to `::`.
       who does not already know the `::` grammar.
 - [x] Documentation split out of the README.
 
-## v0.3.0 — styles that are yours
+## v0.3.0 — styles that are yours  ✅ shipped, folded into v0.2.0
 
 Today a style lives inside the plugin, which means an update overwrites it.
 That has to stop before anyone invests in writing one.
@@ -41,7 +41,7 @@ That has to stop before anyone invests in writing one.
 - [x] Precedence, stated once and enforced everywhere: session, then project,
       then global.
 
-## v0.4.0 — see what it is doing
+## v0.4.0 — see what it is doing  (mostly shipped in v0.2.0)
 
 Injection is invisible by design, which makes failure invisible too.
 
@@ -50,7 +50,7 @@ Injection is invisible by design, which makes failure invisible too.
 - [ ] A bounded latch history, so "what did I have on yesterday" is answerable.
 - [ ] Drift instrumentation: how many turns since the last full re-injection.
 
-## v0.5.0 — a plugin, not a script folder
+## v0.5.0 — a plugin, not a script folder  (mostly shipped in v0.2.0)
 
 - [x] A skill that teaches the agent to author and validate a style properly,
       so a user can say "make me a style for code review" and get a good one.

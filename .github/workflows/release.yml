@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: The suite has to pass on the tag itself
+        run: python -m unittest discover -s tests -v
+
+      - name: Check the tag against the manifests
+        run: python tools/check_release.py "${GITHUB_REF_NAME}"
+
+      - name: Pull the notes out of the changelog
+        id: notes
+        run: |
+          python tools/changelog_section.py "${GITHUB_REF_NAME#v}" > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "StyleLatch ${GITHUB_REF_NAME}" \
+            --notes-file RELEASE_NOTES.md \
+            --verify-tag
