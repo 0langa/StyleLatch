@@ -34,8 +34,11 @@ class SourceTestCase(StyleLatchTestCase):
         super().setUp()
         self._project = tempfile.TemporaryDirectory()
         self._saved_project = os.environ.get("STYLELATCH_PROJECT")
-        os.environ["STYLELATCH_PROJECT"] = self._project.name
-        self.project = Path(self._project.name)
+        # Resolve it. A Windows runner hands out 8.3 short paths such as
+        # C:\Users\RUNNER~1\..., and StyleLatch resolves every path it reports,
+        # so an unresolved fixture path would never match its own output.
+        self.project = Path(self._project.name).resolve()
+        os.environ["STYLELATCH_PROJECT"] = str(self.project)
         self.user_styles = _style.state_dir() / "styles"
         self.project_styles = self.project / _style.PROJECT_DIRNAME / "styles"
 
