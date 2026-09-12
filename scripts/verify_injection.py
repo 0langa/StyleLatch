@@ -21,15 +21,14 @@ reached the API. That is the end of the argument.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
 
 for _stream in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(AttributeError, OSError):  # pragma: no cover
         _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, OSError):  # pragma: no cover
-        pass
 
 # Text StyleLatch injects. Layer 2 opens with the strict-enforcement header;
 # layer 3 opens with the label line.

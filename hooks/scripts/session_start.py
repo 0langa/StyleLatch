@@ -9,21 +9,20 @@ When no style is set this prints {"continue": true} and costs nothing.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import _style  # noqa: E402
+import _style  # imported after the sys.path line above, on purpose
 
 
 def main() -> None:
     # Drain stdin so the caller never blocks on an unread pipe.
-    try:
+    with contextlib.suppress(Exception):
         sys.stdin.read()
-    except Exception:  # noqa: BLE001
-        pass
 
     try:
         if not _style.is_active():

@@ -14,20 +14,19 @@ file with the real rules already merged in.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "hooks" / "scripts"))
 
-import _style  # noqa: E402
+import _style  # imported after the sys.path line above, on purpose
 
 # A style may contain any character, and Windows consoles default to cp1252.
 # Printing a nudge must never crash the switcher.
 for _stream in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(AttributeError, OSError):  # pragma: no cover
         _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, OSError):  # pragma: no cover - non-Windows, or piped
-        pass
 
 
 def cmd_list(_args: argparse.Namespace) -> int:
@@ -83,7 +82,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="style", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("list", help="show available profiles and modifiers").set_defaults(func=cmd_list)
+    lister = subparsers.add_parser("list", help="show available profiles and modifiers")
+    lister.set_defaults(func=cmd_list)
 
     setter = subparsers.add_parser("set", help="compose and activate a style")
     setter.add_argument("profile", help="profile id or name")

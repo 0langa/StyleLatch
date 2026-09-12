@@ -20,6 +20,7 @@ there, so that token proves nothing again. Always re-arm for a new test.
 
 from __future__ import annotations
 
+import contextlib
 import secrets
 import sys
 from pathlib import Path
@@ -27,13 +28,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "hooks" / "scripts"))
 
-import _style  # noqa: E402
+import _style  # noqa: E402  -- must follow the sys.path line above
 
 for _stream in (sys.stdout, sys.stderr):
-    try:
+    with contextlib.suppress(AttributeError, OSError):  # pragma: no cover
         _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, OSError):  # pragma: no cover
-        pass
 
 CANARY = _style.profiles_dir() / "99-canary.md"
 

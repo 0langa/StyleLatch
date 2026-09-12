@@ -1,0 +1,40 @@
+name: Style submission
+description: Propose a new built-in profile or modifier.
+labels: [style]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [Profile, Modifier]
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: silent-run
+    validations:
+      required: true
+  - type: input
+    id: nudge
+    attributes:
+      label: Nudge
+      description: The per-turn reminder. Around 30 words. This is the hardest part.
+    validations:
+      required: true
+  - type: textarea
+    id: body
+    attributes:
+      label: Full rules
+      description: The complete style body, exactly as it would appear in the file.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence it holds
+      description: >
+        Styles decay. Show a transcript, or describe what you did to check the
+        style still governed the tenth reply and not only the first.
