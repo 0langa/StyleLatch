@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import _style  # noqa: E402
+import _style  # imported after the sys.path line above, on purpose
 
 EVENT = "UserPromptSubmit"
 

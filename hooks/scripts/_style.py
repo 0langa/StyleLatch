@@ -93,7 +93,7 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
             continue
         key, _, value = line.partition(":")
         meta[key.strip().lower()] = value.strip().strip("'\"")
-    return meta, text[match.end():].strip()
+    return meta, text[match.end() :].strip()
 
 
 def _read(path: Path) -> tuple[dict[str, str], str]:
@@ -259,7 +259,7 @@ def _atomic_write(path: Path, text: str) -> None:
     """Write via a temp file then replace, so a reader never sees half a file."""
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    tmp.replace(path)
 
 
 # --------------------------------------------------------------------------
@@ -358,17 +358,14 @@ def apply_directive(token: str, rest: str, payload: dict[str, Any]) -> str:
         found = "yes" if prompt_from_payload(payload) else "NO"
         return (
             f"StyleLatch debug\n  payload keys: {keys}\n"
-            f"  prompt text found: {found}\n  state dir: {state_dir()}"
-            + _reply_rule(bare)
+            f"  prompt text found: {found}\n  state dir: {state_dir()}" + _reply_rule(bare)
         )
 
     parts = [part for part in token.split("+") if part]
     try:
         result = compose(parts[0], parts[1:])
     except (KeyError, IndexError) as exc:
-        return (
-            f"StyleLatch: {exc}. Nothing changed.\n\n" + catalog_text() + _reply_rule(bare)
-        )
+        return f"StyleLatch: {exc}. Nothing changed.\n\n" + catalog_text() + _reply_rule(bare)
 
     write_state(result)
     summary = f"StyleLatch: latched {result['label']} ({result['profile']})"
@@ -380,7 +377,7 @@ def apply_directive(token: str, rest: str, payload: dict[str, Any]) -> str:
             f"{summary}. It is in force from this message on.\n\n"
             f"{result['document']}\n"
             "The user sent only a switch, no task. Reply with exactly "
-            f"\"latched: {result['label']}\" and nothing else."
+            f'"latched: {result["label"]}" and nothing else.'
         )
     return (
         f"{summary}. It is in force from this message on. Apply it to the "

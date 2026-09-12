@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in StyleLatch does not behave the way it is documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: run `::test` in your chat and paste the report below.
+        It answers most of these questions for you.
+  - type: textarea
+    id: selftest
+    attributes:
+      label: "`::test` output"
+      description: Type `::test` in Claude Code or Codex and paste what comes back.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options: [Claude Code, Codex, Both, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: StyleLatch version
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Exact steps to reproduce
+      description: The directive you typed, in full, and what the reply looked like.
+    validations:
+      required: true

@@ -166,9 +166,7 @@ class TestNonAsciiStyles(StyleTestCase):
 
     def test_hook_output_is_ascii_safe(self) -> None:
         _style.write_state(_style.compose("01", ["red-balls"]))
-        payload = json.dumps(
-            _style.additional_context("UserPromptSubmit", _style.nudge_text())
-        )
+        payload = json.dumps(_style.additional_context("UserPromptSubmit", _style.nudge_text()))
         payload.encode("ascii")  # json.dumps escapes non-ASCII; must not raise
 
     def test_cli_does_not_crash_printing_emoji(self) -> None:
@@ -176,13 +174,21 @@ class TestNonAsciiStyles(StyleTestCase):
         env["STYLELATCH_ROOT"] = str(ROOT)
         env["PYTHONIOENCODING"] = "cp1252"  # force the failing console encoding
         proc = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "style.py"),
-             "set", "01", "--with", "red-balls"],
-            capture_output=True, text=True, errors="replace",
-            env=env, timeout=30,
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "style.py"),
+                "set",
+                "01",
+                "--with",
+                "red-balls",
+            ],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            env=env,
+            timeout=30,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
-
 
 
 class TestDirectives(StyleTestCase):
@@ -192,11 +198,13 @@ class TestDirectives(StyleTestCase):
         env = dict(os.environ)
         env["STYLELATCH_ROOT"] = str(ROOT)
         proc = subprocess.run(
-            [sys.executable, "-S",
-             str(ROOT / "hooks" / "scripts" / "user_prompt_submit.py")],
+            [sys.executable, "-S", str(ROOT / "hooks" / "scripts" / "user_prompt_submit.py")],
             input=json.dumps({"prompt": prompt}),
-            capture_output=True, text=True, errors="replace",
-            env=env, timeout=30,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            env=env,
+            timeout=30,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return json.loads(proc.stdout)
@@ -205,10 +213,10 @@ class TestDirectives(StyleTestCase):
         return self._hook(prompt)["hookSpecificOutput"]["additionalContext"]
 
     def test_parses_bare_and_trailing_forms(self) -> None:
-        self.assertEqual(_style.parse_directive("::eli5+red-balls"),
-                         ("eli5+red-balls", ""))
-        self.assertEqual(_style.parse_directive("  ::01+04  fix the parser"),
-                         ("01+04", "fix the parser"))
+        self.assertEqual(_style.parse_directive("::eli5+red-balls"), ("eli5+red-balls", ""))
+        self.assertEqual(
+            _style.parse_directive("  ::01+04  fix the parser"), ("01+04", "fix the parser")
+        )
 
     def test_does_not_fire_mid_sentence(self) -> None:
         self.assertIsNone(_style.parse_directive("we could use :: as a prefix"))
@@ -231,7 +239,7 @@ class TestDirectives(StyleTestCase):
         text = self._context("::terse fix the parser")
         self.assertIn("latched 02", text)
         self.assertIn("the user's actual request", text)
-        self.assertNotIn("latched: 02\" and nothing else", text)
+        self.assertNotIn('latched: 02" and nothing else', text)
 
     def test_off_disables(self) -> None:
         self._context("::eli5")
@@ -260,6 +268,7 @@ class TestDirectives(StyleTestCase):
 
     def test_no_directive_and_no_style_costs_nothing(self) -> None:
         self.assertEqual(self._hook("just a normal message"), {"continue": True})
+
 
 if __name__ == "__main__":
     unittest.main()

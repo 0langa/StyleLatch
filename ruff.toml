@@ -1,0 +1,29 @@
+# StyleLatch is stdlib-only and must import on Python 3.9 through 3.14.
+target-version = "py39"
+line-length = 100
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # import order
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+    "PTH",  # prefer pathlib
+    "TID",  # tidy imports
+    "BLE",  # blind except -- allowed only where an inline noqa says why
+]
+
+[lint.per-file-ignores]
+# Tests reach into module internals and reload modules on purpose.
+"tests/*" = ["E501"]
+
+[lint.isort]
+known-first-party = ["_style"]
+
+[format]
+quote-style = "double"
