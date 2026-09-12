@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Scoped latches. A latch belongs to a session, a project, or everything, and
+  the most specific one that is set wins. `::terse @project` keeps a voice
+  inside one repository; `::silent-run @session` dies with the conversation.
+- `::off @project` clears one scope and says what takes over; `::off` still
+  stops everything.
+- Setting a latch that a more specific scope already outranks says so, instead
+  of leaving the user to wonder why nothing changed.
+- A scope whose key cannot be determined — no project detected, or no session
+  id from the host — is refused rather than stored under a key nothing could
+  look up again.
+- `::status`: what is latched, in which scope, how long ago, and what each
+  layer costs in characters and estimated tokens.
+- `::test canary off` removes the canary and restores the latch it displaced.
 - Styles now come from three sources, most specific first: a project's
   `.stylelatch/styles/`, the user's `$STYLELATCH_HOME/styles/`, and the
   built-ins. A style you write survives a plugin update, and a repository can
@@ -35,6 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The state file is versioned and migrates itself forward. A v1 file, which
+  carried one unscoped latch, becomes the global latch.
+- `state.json` stores the recipe rather than the rendered style, and the hooks
+  recompose from it. `ACTIVE.md` became a mirror of the winning latch, which
+  is what layer 1 needs and all it can use.
+- The canary is a real style file in the user directory rather than a document
+  composed in memory, so it goes through exactly the machinery it is testing.
 - State writes preserve keys that are not part of the latched style, so debug
   mode survives a style switch.
 - Both hooks now build their injection from a list of parts, so a nudge and a

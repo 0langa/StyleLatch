@@ -28,6 +28,7 @@ import _style
 CATALOG_WORDS = ("?", "help", "list", "styles", "h")
 OFF_WORDS = ("off", "none", "stop", "clear")
 TEST_WORDS = ("test", "testlatch", "debug", "diag", "doctor", "selftest")
+STATUS_WORDS = ("status", "state", "now", "what")
 
 
 # --------------------------------------------------------------------------
@@ -53,11 +54,15 @@ def catalog_text() -> str:
         "",
         f"Latched now: {state.get('label', 'nothing') if state.get('enabled') else 'nothing'}",
         "",
-        "  ::terse                 latch a profile",
+        "  ::terse                 latch a profile, everywhere",
         "  ::eli5+no-preamble      stack modifiers onto it",
         "  ::01+02                 ids work too",
         "  ::terse fix the parser  latch it and do the task in one message",
+        "  ::terse @project        only in this repository",
+        "  ::terse @session        only in this conversation",
         "  ::off                   back to default behaviour",
+        "  ::off @project          drop just the project latch",
+        "  ::status                what is latched, where, and what it costs",
         "  ::test                  check StyleLatch itself",
         "  ::?                     this list",
     ]
@@ -100,6 +105,7 @@ def test_help() -> str:
             "  ::test on       debug mode: what each hook receives, every turn",
             "  ::test off      end debug mode now",
             "  ::test canary   plant two high-entropy tokens and prove delivery",
+            "  ::test canary off   remove it and restore what was latched before",
             "  ::test verify   search the host's own transcript for the injection",
             "",
             "Debug mode ends by itself after "
@@ -186,6 +192,8 @@ def _handle_test(rest: str, payload: dict[str, Any]) -> str:
     if word == "off":
         return _diagnostics.stop_debug() + _only_this(True)
     if word == "canary":
+        if tail.lower() in ("off", "clean", "stop"):
+            return _diagnostics.clear_canary() + _only_this(True)
         return _diagnostics.arm_canary() + _only_this(True)
     if word == "verify":
         return _diagnostics.verify_injection(payload, tail) + _only_this(True)
@@ -198,6 +206,118 @@ def _handle_test(rest: str, payload: dict[str, Any]) -> str:
     return report + _only_this(not rest)
 
 
+# --------------------------------------------------------------------------
+# scope
+# --------------------------------------------------------------------------
+#
+# "::terse @project" reads as one thought, and "@" cannot start a style name,
+# so the scope word is unambiguous without needing a flag character nobody
+# would remember. Global stays the default: it is what "I write like this"
+# means, and it is what every existing latch already meant.
+
+SCOPE_WORDS = {
+    "session": "session",
+    "now": "session",
+    "chat": "session",
+    "project": "project",
+    "here": "project",
+    "repo": "project",
+    "global": "global",
+    "everywhere": "global",
+    "always": "global",
+}
+
+SCOPE_PHRASE = {
+    "session": "for this session only",
+    "project": "for this project",
+    "global": "everywhere",
+}
+
+
+def split_scope(rest: str) -> tuple[str, str, str]:
+    """Pull a leading "@word" off the rest. Returns (scope, remainder, bad)."""
+    if not rest.startswith("@"):
+        return "", rest, ""
+    word, _, tail = rest[1:].partition(" ")
+    key = word.strip().lower()
+    if key not in SCOPE_WORDS:
+        return "", tail.strip(), key
+    return SCOPE_WORDS[key], tail.strip(), ""
+
+
+def _scope_problem(bad: str) -> str:
+    known = ", ".join(f"@{word}" for word in sorted(set(SCOPE_WORDS)))
+    return f"StyleLatch: no scope called '@{bad}'. Nothing changed.\n  scopes: {known}"
+
+
+def _unaddressable(scope: str) -> str:
+    """Refuse a scope whose key cannot be determined for this invocation.
+
+    Storing a latch under an empty key would write state that can never be
+    read back: the user would see "latched" and then nothing happening.
+    """
+    if _style.scope_key(scope):
+        return ""
+    if scope == "session":
+        return (
+            "StyleLatch: this host did not send a session id, so a session "
+            "latch could never be matched back to this conversation. Nothing "
+            "changed. Use ::<style> @project or plain ::<style> instead."
+        )
+    return (
+        "StyleLatch: no project detected here, so a project latch could never "
+        "be matched back. Nothing changed.\n"
+        "  StyleLatch looks upward from the working directory for .git, .hg, "
+        ".jj, .svn, or .stylelatch/styles."
+    )
+
+
+def _shadow_warning(scope: str) -> str:
+    """Warn when a latch was set that something more specific already beats."""
+    winner = _style.effective()
+    if winner is None or winner[0] == scope:
+        return ""
+    name = winner[1].get("profile", "?")
+    return (
+        f"\n\nNote: a {winner[0]} latch ({name}) is more specific and still "
+        f"wins here, so the {scope} one will not be felt until you clear it "
+        f"with ::off @{winner[0]}."
+    )
+
+
+# --------------------------------------------------------------------------
+# dispatch
+# --------------------------------------------------------------------------
+
+
+def _handle_off(rest: str, bare: bool) -> str:
+    scope, _, bad = split_scope(rest)
+    if bad:
+        return _scope_problem(bad) + _only_this(bare)
+
+    if scope:
+        problem = _unaddressable(scope)
+        if problem:
+            return problem + _only_this(bare)
+        if not _style.clear_latch(scope):
+            return (
+                f"StyleLatch: nothing was latched {SCOPE_PHRASE[scope]}. Nothing changed."
+                + _only_this(bare)
+            )
+        _style.sync(force=True)
+        winner = _style.effective()
+        tail = (
+            f" The {winner[0]} latch ({winner[1].get('profile')}) applies now."
+            if winner
+            else " Default output behaviour from here on."
+        )
+        return f"StyleLatch: cleared the {scope} latch." + tail + _only_this(bare)
+
+    cleared = _style.clear_all_latches()
+    detail = f" Cleared: {', '.join(cleared)}." if cleared else ""
+    return "StyleLatch: off. Default output behaviour from here on." + detail + _only_this(bare)
+
+
 def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
     """Run a directive and return the text to inject. Never raises."""
     bare = not rest
@@ -205,15 +325,26 @@ def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
     if token in CATALOG_WORDS:
         return catalog_text() + _only_this(bare)
 
+    if token in STATUS_WORDS:
+        return _diagnostics.status(payload) + _only_this(bare)
+
     if token in OFF_WORDS:
-        _style.disable()
-        return "StyleLatch: off. Default output behaviour from here on." + _only_this(bare)
+        return _handle_off(rest, bare)
 
     if token in TEST_WORDS:
         return _handle_test(rest, payload)
 
+    scope, task, bad = split_scope(rest)
+    if bad:
+        return _scope_problem(bad) + _only_this(bare)
+    scope = scope or "global"
+    problem = _unaddressable(scope)
+    if problem:
+        return problem + _only_this(bare)
+
     parts = [part for part in token.split("+") if part]
     try:
+        # Compose before writing anything: an unknown style must change nothing.
         result = _style.compose(parts[0], parts[1:])
     except (KeyError, IndexError):
         hint = suggest(parts[0] if parts else token)
@@ -222,12 +353,26 @@ def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
             head += " " + hint
         return head + "\n\n" + catalog_text() + _only_this(bare)
 
-    _style.write_state(result)
+    _style.set_latch(scope, parts[0], parts[1:])
+    _style.sync(force=True)
+
+    winner = _style.effective()
+    if winner is not None and winner[0] != scope:
+        # The latch was stored, but something more specific still decides what
+        # the model sees. Saying so beats letting the user wonder why nothing
+        # changed -- and the style already in force needs no re-injection.
+        return (
+            f"StyleLatch: latched {result['label']} ({result['profile']}) "
+            f"{SCOPE_PHRASE[scope]}." + _shadow_warning(scope) + _only_this(not task)
+        )
+
     summary = f"StyleLatch: latched {result['label']} ({result['profile']})"
     if result["modifiers"]:
         summary += " + " + ", ".join(result["modifiers"])
+    if scope != "global":
+        summary += f", {SCOPE_PHRASE[scope]}"
 
-    if bare:
+    if not task:
         return (
             f"{summary}. It is in force from this message on.\n\n"
             f"{result['document']}\n"

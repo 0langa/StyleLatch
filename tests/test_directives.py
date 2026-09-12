@@ -82,7 +82,7 @@ class TestSwitching(StyleLatchTestCase):
 
 class TestCatalog(StyleLatchTestCase):
     def test_question_mark_lists_without_changing_anything(self) -> None:
-        _style.write_state(_style.compose("01", []))
+        _style.latch("01", [])
         text = self.context("::?")
         self.assertIn("red-balls", text)
         self.assertIn("Latched now: 01", text)
@@ -100,7 +100,7 @@ class TestCatalog(StyleLatchTestCase):
 
 class TestUnknownStyles(StyleLatchTestCase):
     def test_unknown_name_changes_nothing_and_shows_the_catalog(self) -> None:
-        _style.write_state(_style.compose("01", []))
+        _style.latch("01", [])
         text = self.context("::nonsense-zz")
         self.assertIn("Nothing changed", text)
         self.assertIn("PROFILES", text)

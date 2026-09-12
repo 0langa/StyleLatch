@@ -58,7 +58,10 @@ Type a directive as the first thing in a message.
 | `::eli5+no-preamble` | Latch a profile with modifiers stacked on |
 | `::01+02` | Ids work too |
 | `::terse fix the parser` | Latch it **and** do the task, in one message |
-| `::?` | List every profile and modifier, and what is latched now |
+| `::terse @project` | Only in this repository |
+| `::terse @session` | Only in this conversation |
+| `::?` | List every profile and modifier, and where they come from |
+| `::status` | What is latched, in which scope, and what it costs |
 | `::off` | Back to default behaviour |
 | `::test` | Check StyleLatch itself |
 
@@ -78,6 +81,58 @@ add-to-memory shortcut. The host would eat either before a hook ever saw it.
 
 ---
 
+## Scopes
+
+A voice that suits one repository is usually wrong for the next one, and a long
+autonomous job wants a style that dies with it. So a latch belongs to a scope,
+and **the most specific one that is set wins**.
+
+| Scope | Set it with | Lives until |
+|---|---|---|
+| session | `::silent-run @session` | this conversation ends |
+| project | `::deep-technical @project` | you clear it, in this repository |
+| global | `::eli5` | you clear it, everywhere |
+
+Global stays the default, because it is what *I write like this* means.
+
+```
+::status
+
+StyleLatch status
+
+  effective    04  silent-run   (session)
+  layer 2       3163 chars  ~ 791 tokens
+  layer 3        149 chars  ~  37 tokens
+
+  > session    silent-run   2m ago
+    project    deep-technical   3d ago
+    global     eli5+no-preamble   9d ago
+
+  project      C:\work\api
+```
+
+Clearing is symmetrical. `::off` stops everything; `::off @project` drops only
+that latch and tells you what takes over.
+
+Setting a latch that something more specific already outranks says so rather
+than leaving you to wonder:
+
+```
+::terse @project
+StyleLatch: latched 02 (terse) for this project.
+
+Note: a session latch (silent-run) is more specific and still wins here, so
+the project one will not be felt until you clear it with ::off @session.
+```
+
+A project is the directory above you holding `.git`, `.hg`, `.jj`, `.svn`, or
+`.stylelatch/styles`, so a latch set in a subdirectory means the same thing as
+one set at the top. If there is no project — or if the host sends no session id
+— that scope is refused outright rather than storing a latch nothing could ever
+look up again.
+
+---
+
 ## When it does not seem to be working
 
 Everything diagnostic lives behind one directive.
@@ -87,6 +142,7 @@ Everything diagnostic lives behind one directive.
 ::test on       debug mode: what each hook actually received, every turn
 ::test off      end debug mode now
 ::test canary   plant two high-entropy tokens and prove delivery
+::test canary off   remove it and put back what was latched before
 ::test verify   search the host's own transcript for the injection
 ```
 
@@ -109,6 +165,11 @@ StyleLatch self-test
   plugin root   C:\Users\you\.claude\plugins\cache\...\0.1.0
                 installed snapshot -- edits to the repo need a plugin update
   latched       02
+
+  styles are read from, most specific first:
+    project   C:\work\api\.stylelatch\styles   (does not exist yet)
+    user      C:\Users\you\.stylelatch\styles
+    built-in  C:\Users\you\.claude\plugins\cache\...\styles
 ```
 
 That last line is there because it is the failure everybody hits once: the code
@@ -158,8 +219,13 @@ tests/                 stdlib unittest, no pytest needed
 2. `$PLUGIN_DATA/stylelatch` — Codex hands plugins a writable data dir
 3. `~/.stylelatch` — default
 
-Holds `ACTIVE.md` (the composed rules) and `state.json` (what is on, plus the
-per-turn nudge). Writes are atomic, so a hook never reads half a file.
+`state.json` holds the scoped latches, which are the truth. `ACTIVE.md` is a
+*mirror* of whichever latch currently wins, refreshed by the hooks — it exists
+for layer 1, which reads it straight off disk and cannot resolve a scope by
+itself. Writes are atomic, so a hook never reads half a file.
+
+The state file is versioned and migrates itself forward. A v1 file, which had
+one unscoped latch, becomes the global latch — which is exactly what it meant.
 
 ---
 

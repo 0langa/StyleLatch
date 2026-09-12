@@ -78,14 +78,14 @@ class TestState(StyleLatchTestCase):
         self.assertEqual(_style.load_state(), {})
 
     def test_write_then_read_back(self) -> None:
-        _style.write_state(_style.compose("02", ["01"]))
+        _style.latch("02", ["01"])
         self.assertTrue(_style.is_active())
         self.assertIn("Maximum signal", _style.read_active())
         self.assertIn("02+01", _style.nudge_text())
 
     def test_off_keeps_the_file_but_deactivates(self) -> None:
-        _style.write_state(_style.compose("01", []))
-        _style.disable()
+        _style.latch("01", [])
+        _style.clear_all_latches()
         self.assertFalse(_style.is_active())
         self.assertTrue(_style.active_path().is_file())
 
@@ -97,25 +97,25 @@ class TestState(StyleLatchTestCase):
 
     def test_switching_a_style_preserves_carried_keys(self) -> None:
         # Debug mode has to survive a "::terse" typed in the middle of it.
-        _style.write_state(_style.compose("01", []))
+        _style.latch("01", [])
         state = _style.load_state()
         state["debug"] = {"turns_left": 7}
         state["restore"] = {"label": "03"}
         _style.save_state_raw(state)
 
-        _style.write_state(_style.compose("02", []))
+        _style.latch("02", [])
         after = _style.load_state()
         self.assertEqual(after["label"], "02")
         self.assertEqual(after["debug"], {"turns_left": 7})
         self.assertEqual(after["restore"], {"label": "03"})
 
     def test_disable_preserves_carried_keys(self) -> None:
-        _style.write_state(_style.compose("01", []))
+        _style.latch("01", [])
         state = _style.load_state()
         state["debug"] = {"turns_left": 3}
         _style.save_state_raw(state)
 
-        _style.disable()
+        _style.clear_all_latches()
         after = _style.load_state()
         self.assertFalse(after["enabled"])
         self.assertEqual(after["debug"], {"turns_left": 3})
@@ -127,14 +127,14 @@ class TestHooks(StyleLatchTestCase):
             self.assertEqual(self.hook(script), {"continue": True}, script)
 
     def test_session_start_injects_the_full_document(self) -> None:
-        _style.write_state(_style.compose("01", ["02"]))
+        _style.latch("01", ["02"])
         specific = self.hook("session_start.py")["hookSpecificOutput"]
         self.assertEqual(specific["hookEventName"], "SessionStart")
         self.assertIn("STRICT ENFORCEMENT", specific["additionalContext"])
         self.assertIn("Start with the substance", specific["additionalContext"])
 
     def test_prompt_hook_injects_only_the_small_nudge(self) -> None:
-        _style.write_state(_style.compose("01", ["02"]))
+        _style.latch("01", ["02"])
         specific = self.hook("user_prompt_submit.py")["hookSpecificOutput"]
         self.assertEqual(specific["hookEventName"], "UserPromptSubmit")
         text = specific["additionalContext"]
@@ -178,7 +178,7 @@ class TestNonAsciiStyles(StyleLatchTestCase):
         self.assertIn("\U0001f3c0", result["document"])
 
     def test_hook_output_is_ascii_safe(self) -> None:
-        _style.write_state(_style.compose("01", ["red-balls"]))
+        _style.latch("01", ["red-balls"])
         payload = json.dumps(_style.additional_context("UserPromptSubmit", _style.nudge_text()))
         payload.encode("ascii")  # json.dumps escapes non-ASCII; must not raise
 
