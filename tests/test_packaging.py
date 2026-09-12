@@ -86,6 +86,47 @@ class TestManifests(unittest.TestCase):
             self.assertEqual(manifest.get("license"), "MIT", relative)
 
 
+class TestReleaseConsistency(unittest.TestCase):
+    """A tag that disagrees with a manifest installs the wrong code silently."""
+
+    def test_the_changelog_has_a_section_for_the_current_version(self) -> None:
+        version = load("plugin.json")["version"]
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(f"## [{version}]", changelog)
+
+    def test_the_release_checker_passes_for_the_current_version(self) -> None:
+        version = load("plugin.json")["version"]
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_release.py"), f"v{version}"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_the_release_checker_rejects_a_mismatched_tag(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "check_release.py"), "v99.99.99"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("not consistent", proc.stdout)
+
+    def test_the_changelog_section_extractor_finds_the_current_version(self) -> None:
+        version = load("plugin.json")["version"]
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "changelog_section.py"), version],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("No changelog section", proc.stdout)
+        self.assertTrue(proc.stdout.strip())
+
+
 class TestSkill(unittest.TestCase):
     """Both providers auto-discover skills/<name>/SKILL.md."""
 

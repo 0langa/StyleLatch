@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] - 2026-09-12
+
 ### Added
 
 - A skill at `skills/stylelatch/`, auto-discovered by both Claude Code and
@@ -96,5 +100,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diagnostics: a two-token canary, and a session-log scanner that proves
   injection from the host's own transcript rather than the model's testimony.
 
-[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/0langa/StyleLatch/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/0langa/StyleLatch/releases/tag/v0.1.0
