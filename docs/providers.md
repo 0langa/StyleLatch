@@ -3,9 +3,6 @@
 StyleLatch targets Codex and Claude Code from one set of files. This page
 records what each host actually gives us, and where that was checked.
 
-Dated evidence for every claim below lives in
-[`.ai/official-docs-cache/`](../.ai/official-docs-cache/). When a claim here
-and the cache disagree, the cache is older — re-check the source it names.
 
 ## Capability matrix
 

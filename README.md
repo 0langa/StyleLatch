@@ -362,8 +362,6 @@ python -m unittest discover -s tests -v
 
 They run against a temp directory, never your real `~/.stylelatch`.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
-[ROADMAP.md](ROADMAP.md) for where this is going.
 
 ## License
 
