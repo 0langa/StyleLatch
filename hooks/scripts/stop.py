@@ -47,11 +47,11 @@ def measure(payload: dict) -> None:
     if not rules:
         return
 
-    transcript = payload.get("transcript_path") or payload.get("transcriptPath") or ""
-    reply = _adherence.last_reply(str(transcript))
+    reply = _adherence.finished_reply(payload)
     if not reply:
-        # The transcript shape was not recognised. Recording a clean turn here
-        # would be a lie, and recording a broken one would be worse.
+        # No reply to read: the host sent none and the transcript shape was
+        # not recognised. Recording a clean turn here would be a lie, and
+        # recording a broken one would be worse.
         return
 
     label = str(_style.load_state().get("label", "?"))

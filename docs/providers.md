@@ -62,7 +62,7 @@ fails the plugin load with *Duplicate hooks file*. There is a test for this.
 | 1 | nothing — a line in the user's own instructions file | always works |
 | 2 | `SessionStart` + `additionalContext` | no style at session start; layer 3 still re-states it every turn |
 | 3 | `UserPromptSubmit` + a readable prompt field | no anti-drift nudge; layer 2 still delivers at session start |
-| 4 | `Stop` + a readable `transcript_path` | no adherence measurement and no corrections; every other layer is unaffected |
+| 4 | `Stop` + `last_assistant_message`, or a readable `transcript_path` | no adherence measurement and no corrections; every other layer is unaffected |
 
 The layers degrade independently, which is the point of having three.
 
@@ -76,13 +76,14 @@ If a host ever sends something else, `::test on` prints the payload keys it
 actually received, which is how a new field name gets identified for real
 rather than guessed at.
 
-Scopes need two more fields, both optional:
+Scopes and layer 4 use a few more fields, all optional:
 
 | Field | Used for | Missing means |
 |---|---|---|
 | `cwd` | finding the project root | project scope is refused, with a message saying why |
 | `session_id` | the session latch, and retiring debug mode | session scope is refused |
-| `transcript_path` | reading the finished reply back, and `::test verify` | nothing is measured, and nothing is recorded — a clean turn would be a lie |
+| `last_assistant_message` | the finished reply, on `Stop` | the reply is read from `transcript_path` instead |
+| `transcript_path` | the finished reply when `last_assistant_message` is missing, and `::test verify` | nothing is measured, and nothing is recorded — a clean turn would be a lie |
 
 Refusing is deliberate. A latch stored under an empty key could never be read
 back, and the user would be told "latched" and then watch nothing happen.

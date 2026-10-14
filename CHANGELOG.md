@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Codex honours, and on Windows `python3` is usually the Microsoft Store alias
   that prints *Python was not found*. The command now picks `py -3`, or
   `python`, on Windows and keeps `python3` everywhere else.
+- The `Stop` hook measured the wrong reply. It read only the transcript, which
+  Claude Code documents as not guaranteed to hold the final message yet when
+  `Stop` fires, and it took a tool call's input as prose, so a `Write` of a
+  Markdown file could be recorded as a breach. It now uses the
+  `last_assistant_message` field both hosts send, and the transcript fallback
+  skips tool calls.
 
 ## [0.3.0] - 2026-09-12
 

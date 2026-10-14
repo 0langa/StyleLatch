@@ -146,6 +146,34 @@ class TestTranscript(StyleLatchTestCase):
         path = self.write({"payload": {"role": "assistant", "content": "from a payload"}})
         self.assertEqual(_adherence.last_reply(path), "from a payload")
 
+    def test_a_tool_call_s_input_is_not_the_reply(self) -> None:
+        # A Write call carries the whole file under input.content. That file is
+        # not prose the model wrote to the user, and measuring it as the reply
+        # reports headings and long sentences that were never said.
+        path = self.write(
+            {
+                "type": "assistant",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "Done."}]},
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Write",
+                            "input": {
+                                "file_path": "README.md",
+                                "content": "# Title\n\nlet me know if",
+                            },
+                        }
+                    ],
+                },
+            },
+        )
+        self.assertEqual(_adherence.last_reply(path), "Done.")
+
     def test_it_ignores_user_messages(self) -> None:
         path = self.write({"role": "user", "content": "only a user message"})
         self.assertEqual(_adherence.last_reply(path), "")
@@ -237,6 +265,38 @@ class TestTheLoop(StyleLatchTestCase):
         self.context("::terse", session_id="s1")
         self.hook("stop.py", {"session_id": "s1", "transcript_path": "/no/such/file.jsonl"})
         self.assertEqual(_adherence.recorded(), [])
+
+    def test_the_host_s_last_message_beats_a_stale_transcript(self) -> None:
+        # Claude Code documents that the transcript may not hold the final
+        # message yet when Stop fires, and hands it over as a field instead.
+        self.context("::terse", session_id="s1")
+        self.hook(
+            "stop.py",
+            {
+                "session_id": "s1",
+                "transcript_path": self.transcript("The previous reply, which was clean."),
+                "last_assistant_message": "Done. Hope that helps.",
+            },
+        )
+        self.assertTrue(_adherence.recorded()[0]["broken"])
+
+    def test_the_last_message_is_measured_without_any_transcript(self) -> None:
+        self.context("::terse", session_id="s1")
+        self.hook("stop.py", {"session_id": "s1", "last_assistant_message": "Done."})
+        self.assertEqual(_adherence.recorded()[0]["broken"], [])
+
+    def test_a_null_last_message_falls_back_to_the_transcript(self) -> None:
+        # Codex documents the field as string | null.
+        self.context("::terse", session_id="s1")
+        self.hook(
+            "stop.py",
+            {
+                "session_id": "s1",
+                "transcript_path": self.transcript("Done. Hope that helps."),
+                "last_assistant_message": None,
+            },
+        )
+        self.assertTrue(_adherence.recorded()[0]["broken"])
 
     def test_the_record_is_bounded(self) -> None:
         self.context("::terse", session_id="s1")
