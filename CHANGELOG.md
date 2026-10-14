@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.2] - 2026-10-15
+
+### Upgrading
+
+- **Your styles now live in `~/.stylelatch/styles`**, or in
+  `$STYLELATCH_HOME/styles` when that is set, and never in the host's plugin
+  data directory. The first hook run after updating copies them there from
+  the old plugin data directory. Edit them in the new place from now on: the
+  old copies stay where they were, but StyleLatch no longer loads styles from
+  them. If `::test` lists files kept aside in `styles-from-plugin-data/`,
+  compare them with the copies in your style directory and keep the one you
+  want.
+- **No new hook trust step in Codex.** The hook definitions are the same as
+  in 0.3.1, so there is nothing to trust again if you trusted 0.3.1's hooks.
+  Coming from 0.3.0 or earlier, trust them in `/hooks` as described under
+  0.3.1.
+
 ### Fixed
 
 - **Your own styles survive an uninstall.** Under a plugin install the user
@@ -220,7 +239,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diagnostics: a two-token canary, and a session-log scanner that proves
   injection from the host's own transcript rather than the model's testimony.
 
-[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/0langa/StyleLatch/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/0langa/StyleLatch/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/0langa/StyleLatch/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/0langa/StyleLatch/compare/v0.2.0...v0.2.1
