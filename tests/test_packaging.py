@@ -99,7 +99,8 @@ def _posix_shell() -> str | None:
     git = shutil.which("git")
     if not git:
         return None
-    for ancestor in Path(git).resolve().parents[:3]:
+    # list(): slicing Path.parents needs Python 3.10.
+    for ancestor in list(Path(git).resolve().parents)[:3]:
         candidate = ancestor / "bin" / "sh.exe"
         if candidate.is_file():
             return str(candidate)
