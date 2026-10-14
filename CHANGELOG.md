@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fires on a reasonable style teaches people to ignore warnings. CI asserts
   that no style StyleLatch ships trips its own guard.
 
+### Fixed
+
+- No hook ever ran under Claude Code on Windows. Claude Code runs a hook's
+  `command` through Git Bash and does not read `commandWindows`, which only
+  Codex honours, and on Windows `python3` is usually the Microsoft Store alias
+  that prints *Python was not found*. The command now picks `py -3`, or
+  `python`, on Windows and keeps `python3` everywhere else.
+
 ## [0.3.0] - 2026-09-12
 
 ### Added

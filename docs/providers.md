@@ -25,9 +25,18 @@ the host's documentation disagree, the documentation wins.
 | Writable data dir env var | `CLAUDE_PLUGIN_DATA` | `PLUGIN_DATA`, plus `CLAUDE_PLUGIN_DATA` as an alias |
 | Project root env var | `CLAUDE_PROJECT_DIR` | not documented |
 | Hooks need a one-time trust step | no | **yes** — Settings › Coding › Hooks |
+| Hook command on Windows | `command`, run by Git Bash (PowerShell if Git Bash is missing) | `commandWindows` |
 
 The output JSON shape is identical on both, which is why one `hooks/hooks.json`
 and one pair of scripts serve both hosts.
+
+On Windows, Claude Code ignores `commandWindows` and runs `command` through Git
+Bash, where `python3` is usually the Microsoft Store alias that only prints
+*Python was not found*. So `command` picks its interpreter itself: `python3` on
+macOS and Linux, and on Windows (`$OS` is `Windows_NT`) the `py -3` launcher,
+or `python` when the launcher is not installed. Claude Code on Windows without
+Git Bash runs hooks in PowerShell, which cannot run that command; install Git
+for Windows there.
 
 ## Manifests
 
