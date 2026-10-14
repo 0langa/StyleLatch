@@ -17,9 +17,11 @@ ones, so checking both costs nothing and covers either host.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -649,11 +651,36 @@ def latch(profile: str, modifiers: list[str] | tuple[str, ...] = (), scope: str 
     return sync(force=True)
 
 
+# Windows refuses to replace a file another process has open, and another
+# session's hook reading state.json is enough. Those reads take milliseconds,
+# so a refused replace is retried briefly rather than failing the hook.
+_REPLACE_ATTEMPTS = 8
+_REPLACE_PAUSE = 0.01
+
+
 def _atomic_write(path: Path, text: str) -> None:
-    """Write via a temp file then replace, so a reader never sees half a file."""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    """Write via a temp file then replace, so a reader never sees half a file.
+
+    The temp file is unique to this write, so two hooks writing at once can
+    never rename each other's half-written file into place.
+    """
+    fd, name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp")
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        for attempt in range(1, _REPLACE_ATTEMPTS + 1):
+            try:
+                tmp.replace(path)
+                return
+            except PermissionError:
+                if attempt == _REPLACE_ATTEMPTS:
+                    raise
+                time.sleep(_REPLACE_PAUSE * attempt)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
 
 
 # --------------------------------------------------------------------------

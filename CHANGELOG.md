@@ -54,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in any session took the newest entry. Corrections now go to the session
   whose reply broke the rule, and the `Stop` hook resolves that session's own
   latch before measuring instead of trusting whichever session ran last.
+- On Windows a state write failed whenever another process had `state.json`
+  open, which another session's hook reading it is enough for, and the hook
+  then dropped the turn's directive silently. A refused replace is now retried
+  briefly, and every write uses its own temp file, so two hooks writing at
+  once can no longer rename each other's half-written file into place.
 
 ## [0.3.0] - 2026-09-12
 
