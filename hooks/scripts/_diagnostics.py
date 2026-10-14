@@ -205,7 +205,7 @@ def _check_guard() -> tuple[bool, str]:
     flagged = []
     for kind in ("PROFILES", "MODIFIERS"):
         for entry in _style.collect(kind):
-            for line in _guard.review(entry["body"]):
+            for line in _guard.review(_style.guarded_text(entry)):
                 flagged.append(f"{entry['name']} ({entry['source']}) -- {line}")
     if flagged:
         flagged.append("A style governs how you write, never what you may do. See SECURITY.md.")

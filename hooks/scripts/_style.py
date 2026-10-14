@@ -262,6 +262,15 @@ def modifiers() -> dict[str, dict[str, Any]]:
     return _catalog("MODIFIERS")
 
 
+def guarded_text(entry: dict[str, Any]) -> str:
+    """Everything in a style that reaches the model, for the guard to read.
+
+    The nudge as well as the body: the nudge is injected on every turn, so it
+    is the last place a line about conduct should be able to hide.
+    """
+    return f"{entry.get('nudge', '')}\n{entry.get('body', '')}"
+
+
 def unique(entries: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """Deduplicate the id/name double-registration, ordered by id."""
     seen: dict[str, dict[str, Any]] = {}
@@ -323,11 +332,11 @@ def compose(profile_key: str, modifier_keys: list[str]) -> dict[str, Any]:
         if part.strip()
     )
 
-    # Reviewed from the source bodies, not the composed document: the header
+    # Reviewed from the source files, not the composed document: the header
     # itself talks about safety rules and permission checks, and would trip.
     concerns: list[str] = []
     for entry in [profile, *chosen]:
-        concerns += [f"{entry['name']} -- {line}" for line in _guard.review(entry["body"])]
+        concerns += [f"{entry['name']} -- {line}" for line in _guard.review(guarded_text(entry))]
 
     label = "+".join([str(profile["id"])] + [str(e["id"]) for e in chosen])
     return {
