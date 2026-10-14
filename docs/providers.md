@@ -14,7 +14,7 @@ the host's documentation disagree, the documentation wins.
 | | Claude Code | Codex |
 |---|---|---|
 | `SessionStart` hook | yes | yes |
-| `SessionStart` matchers | `startup`, `resume`, `clear`, `compact`, `fork` | fires on session start |
+| `SessionStart` matchers | `startup`, `resume`, `clear`, `compact`, `fork` | the same five |
 | `UserPromptSubmit` hook | yes | yes |
 | `Stop` hook | yes | yes |
 | `hookSpecificOutput.additionalContext` | yes | yes, added as developer context |
@@ -64,13 +64,13 @@ fails the plugin load with *Duplicate hooks file*. There is a test for this.
 | 3 | `UserPromptSubmit` + a readable prompt field | no anti-drift nudge; layer 2 still delivers at session start |
 | 4 | `Stop` + `last_assistant_message`, or a readable `transcript_path` | no adherence measurement and no corrections; every other layer is unaffected |
 
-The layers degrade independently, which is the point of having three.
+The layers degrade independently, which is the point of having four.
 
 ## Payload fields
 
-Claude Code sends the message as `prompt`. Codex's field name is not
-documented, so `_style.prompt_from_payload` tries the plausible ones in order:
-`prompt`, `user_prompt`, `userPrompt`, `text`, `message`, `input`.
+Both hosts document the message field as `prompt`. `_style.prompt_from_payload`
+still tries the other plausible names after it, in order: `user_prompt`,
+`userPrompt`, `text`, `message`, `input`.
 
 If a host ever sends something else, `::test on` prints the payload keys it
 actually received, which is how a new field name gets identified for real

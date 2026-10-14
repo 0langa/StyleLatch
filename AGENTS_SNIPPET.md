@@ -18,3 +18,8 @@ It is the backup for when hook trust is off or a hook fails silently.
 
 The last line matters. Without it, an agent with no style set will go hunting
 for the directory and burn tokens finding nothing.
+
+The path is the default state directory. Under a plugin install both hosts
+hand the hooks a data directory and the state lives there instead, so check
+the `state` line that `::status` prints and put that path in the snippet if it
+differs.
