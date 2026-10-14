@@ -17,9 +17,11 @@ ones, so checking both costs nothing and covers either host.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -193,7 +195,8 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def _read(path: Path) -> tuple[dict[str, str], str]:
-    return parse_frontmatter(path.read_text(encoding="utf-8"))
+    # utf-8-sig: Windows PowerShell 5.1 writes "UTF8" with a byte order mark.
+    return parse_frontmatter(path.read_text(encoding="utf-8-sig"))
 
 
 def _read_dir(directory: Path, source: str) -> list[dict[str, Any]]:
@@ -262,6 +265,15 @@ def modifiers() -> dict[str, dict[str, Any]]:
     return _catalog("MODIFIERS")
 
 
+def guarded_text(entry: dict[str, Any]) -> str:
+    """Everything in a style that reaches the model, for the guard to read.
+
+    The nudge as well as the body: the nudge is injected on every turn, so it
+    is the last place a line about conduct should be able to hide.
+    """
+    return f"{entry.get('nudge', '')}\n{entry.get('body', '')}"
+
+
 def unique(entries: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """Deduplicate the id/name double-registration, ordered by id."""
     seen: dict[str, dict[str, Any]] = {}
@@ -323,11 +335,11 @@ def compose(profile_key: str, modifier_keys: list[str]) -> dict[str, Any]:
         if part.strip()
     )
 
-    # Reviewed from the source bodies, not the composed document: the header
+    # Reviewed from the source files, not the composed document: the header
     # itself talks about safety rules and permission checks, and would trip.
     concerns: list[str] = []
     for entry in [profile, *chosen]:
-        concerns += [f"{entry['name']} -- {line}" for line in _guard.review(entry["body"])]
+        concerns += [f"{entry['name']} -- {line}" for line in _guard.review(guarded_text(entry))]
 
     label = "+".join([str(profile["id"])] + [str(e["id"]) for e in chosen])
     return {
@@ -639,11 +651,36 @@ def latch(profile: str, modifiers: list[str] | tuple[str, ...] = (), scope: str 
     return sync(force=True)
 
 
+# Windows refuses to replace a file another process has open, and another
+# session's hook reading state.json is enough. Those reads take milliseconds,
+# so a refused replace is retried briefly rather than failing the hook.
+_REPLACE_ATTEMPTS = 8
+_REPLACE_PAUSE = 0.01
+
+
 def _atomic_write(path: Path, text: str) -> None:
-    """Write via a temp file then replace, so a reader never sees half a file."""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    """Write via a temp file then replace, so a reader never sees half a file.
+
+    The temp file is unique to this write, so two hooks writing at once can
+    never rename each other's half-written file into place.
+    """
+    fd, name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp")
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        for attempt in range(1, _REPLACE_ATTEMPTS + 1):
+            try:
+                tmp.replace(path)
+                return
+            except PermissionError:
+                if attempt == _REPLACE_ATTEMPTS:
+                    raise
+                time.sleep(_REPLACE_PAUSE * attempt)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
 
 
 # --------------------------------------------------------------------------

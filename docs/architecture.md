@@ -41,9 +41,10 @@ one-time trust step) or silently broken. It reads `ACTIVE.md` straight off
 disk. It cannot resolve a scope, which is why `ACTIVE.md` is a mirror rather
 than the source of truth.
 
-**Layer 4** is the only one that reads rather than writes. It pulls the reply
-that just finished out of the host's own transcript and checks it against the
-style's declared assertions. That is what turns "the style is holding" from an
+**Layer 4** is the only one that reads rather than writes. It takes the reply
+that just finished from the host (`last_assistant_message`, or the host's own
+transcript when that field is missing) and checks it against the style's
+declared assertions. That is what turns "the style is holding" from an
 impression into a number, and it is what lets layer 3 stop being a reminder and
 start being a correction:
 

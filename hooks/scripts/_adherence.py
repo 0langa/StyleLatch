@@ -8,8 +8,9 @@ A style may declare machine-checkable assertions:
 
     checks: max_sentence_words=25; forbid=Great question; no_headings
 
-After the model replies, the Stop hook reads that reply out of the host's own
-transcript, evaluates the assertions, and records the result. The next turn's
+After the model replies, the Stop hook takes that reply from the host -- the
+`last_assistant_message` field, or the host's own transcript when the field is
+missing -- evaluates the assertions, and records the result. The next turn's
 nudge then carries one short correction naming what broke.
 
 That closes the loop. Layer 3 stops being a reminder of the rules and becomes
@@ -161,9 +162,15 @@ def evaluate(reply: str, rules: list[tuple[str, str]]) -> list[str]:
 
 
 def _texts_of(record: Any) -> list[str]:
-    """Every string under a "text" or "content" key, at any depth."""
+    """Every string under a "text" or "content" key, at any depth.
+
+    A tool call is skipped whole: a Write call carries an entire file under
+    input.content, and that file is not prose the model wrote to the user.
+    """
     found: list[str] = []
     if isinstance(record, dict):
+        if str(record.get("type", "")).endswith("tool_use"):
+            return found
         for key, value in record.items():
             if key in ("text", "content") and isinstance(value, str):
                 found.append(value)
@@ -220,6 +227,22 @@ def last_reply(transcript: str) -> str:
     return ""
 
 
+def finished_reply(payload: dict[str, Any]) -> str:
+    """The reply the Stop hook is measuring, or "".
+
+    Both hosts hand it over as `last_assistant_message`, and Claude Code's own
+    documentation warns that the transcript is not guaranteed to hold the
+    final message yet when Stop fires. The transcript is the fallback for a
+    host that does not send the field.
+    """
+    for field in ("last_assistant_message", "lastAssistantMessage"):
+        value = payload.get(field)
+        if isinstance(value, str) and value.strip():
+            return value
+    transcript = payload.get("transcript_path") or payload.get("transcriptPath") or ""
+    return last_reply(str(transcript))
+
+
 # --------------------------------------------------------------------------
 # the record
 # --------------------------------------------------------------------------
@@ -235,7 +258,10 @@ def active_rules() -> tuple[list[tuple[str, str]], list[str]]:
 def record(broken: list[str], label: str) -> None:
     state = _style.load_scoped()
     entries = [e for e in state.get("adherence", []) if isinstance(e, dict)]
-    entries.append({"at": time.time(), "label": label, "broken": broken})
+    entry: dict[str, Any] = {"at": time.time(), "label": label, "broken": broken}
+    if _style.session_key():
+        entry["session"] = _style.session_key()
+    entries.append(entry)
     state["adherence"] = entries[-MAX_RECORDED:]
     _style.save_state_raw(state)
 
@@ -265,6 +291,11 @@ def take_correction() -> str:
     """
     state = _style.load_scoped()
     entries = [e for e in state.get("adherence", []) if isinstance(e, dict)]
+    # Every session wearing the latch writes to one record, but a correction
+    # is only true in the session whose reply broke the rule. An entry with no
+    # session, or a host that sends no session id, matches as it always did.
+    session = _style.session_key()
+    entries = [e for e in entries if not session or e.get("session") in (None, "", session)]
     if not entries:
         return ""
 

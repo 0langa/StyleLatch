@@ -20,6 +20,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fires on a reasonable style teaches people to ignore warnings. CI asserts
   that no style StyleLatch ships trips its own guard.
 
+### Fixed
+
+- No hook ever ran under Claude Code on Windows. Claude Code runs a hook's
+  `command` through Git Bash and does not read `commandWindows`, which only
+  Codex honours, and on Windows `python3` is usually the Microsoft Store alias
+  that prints *Python was not found*. The command now picks `py -3`, or
+  `python`, on Windows and keeps `python3` everywhere else.
+- The `Stop` hook measured the wrong reply. It read only the transcript, which
+  Claude Code documents as not guaranteed to hold the final message yet when
+  `Stop` fires, and it took a tool call's input as prose, so a `Write` of a
+  Markdown file could be recorded as a breach. It now uses the
+  `last_assistant_message` field both hosts send, and the transcript fallback
+  skips tool calls.
+- `::test canary off` with no canary armed cleared the real global latch while
+  reporting that nothing changed. It now only ever removes the canary.
+- Disarming the canary put back only the latch that had been winning. Arming
+  stands down the session and project latches and takes over the global one,
+  so the other two were lost, and re-arming while a more specific latch won
+  replaced the snapshot and lost the original global latch too. Every latch it
+  displaced now comes back, re-arm or not, unless a newer one was set while the
+  canary was armed.
+- The conduct guard never read a style's `nudge`, which is the one part
+  injected on every turn. It reads it now.
+- The conduct guard flagged styles that restate the boundary, such as *never
+  skip the confirmation*, *do not claim the tests passed unless you ran them*
+  or *never hide errors*, and matched inside words (*chide the error*). A
+  negation sitting right on the phrase now clears it; one on another verb, as
+  in *don't hesitate to skip the confirmation*, still does not.
+- A style file saved as UTF-8 with a byte order mark, which is what Windows
+  PowerShell 5.1 writes, lost its whole frontmatter: no nudge, no checks, and
+  the frontmatter injected as part of the body. It parses now.
+- With two sessions open, a breach in one was corrected in the other. Every
+  session wearing a latch writes to one adherence record, and the next prompt
+  in any session took the newest entry. Corrections now go to the session
+  whose reply broke the rule, and the `Stop` hook resolves that session's own
+  latch before measuring instead of trusting whichever session ran last.
+- On Windows a state write failed whenever another process had `state.json`
+  open, which another session's hook reading it is enough for, and the hook
+  then dropped the turn's directive silently. A refused replace is now retried
+  briefly, and every write uses its own temp file, so two hooks writing at
+  once can no longer rename each other's half-written file into place.
+
 ## [0.3.0] - 2026-09-12
 
 ### Added

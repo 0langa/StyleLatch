@@ -8,10 +8,14 @@ agreement except this file.
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from _support import ROOT, StyleLatchTestCase, _style
 
@@ -84,6 +88,105 @@ class TestManifests(unittest.TestCase):
             manifest = load(relative)
             self.assertIn("author", manifest, relative)
             self.assertEqual(manifest.get("license"), "MIT", relative)
+
+
+def _posix_shell() -> str | None:
+    """A POSIX sh to run hook commands through, as the hosts do, or None."""
+    if sys.platform != "win32":
+        return shutil.which("sh")
+    # Claude Code uses Git Bash on Windows. Find it through git itself, so a
+    # WSL bash.exe on PATH is never picked up by mistake.
+    git = shutil.which("git")
+    if not git:
+        return None
+    # list(): slicing Path.parents needs Python 3.10.
+    for ancestor in list(Path(git).resolve().parents)[:3]:
+        candidate = ancestor / "bin" / "sh.exe"
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+class TestHookCommands(unittest.TestCase):
+    """Every hook's `command` has to find a Python on every host that runs it.
+
+    Claude Code runs `command` through a POSIX shell everywhere -- Git Bash on
+    Windows -- and does not read `commandWindows`, which only Codex honours. On
+    Windows `python3` is usually the Microsoft Store alias, which prints
+    "Python was not found" and exits non-zero, so a bare `python3` meant no
+    StyleLatch hook ever ran under Claude Code on Windows.
+
+    Each case puts fake interpreters first on PATH and runs the real command
+    strings from hooks/hooks.json through sh.
+    """
+
+    STUB = "#!/bin/sh\necho 'Python was not found' >&2\nexit 49\n"
+
+    def setUp(self) -> None:
+        self.shell = _posix_shell()
+        if self.shell is None:
+            self.skipTest("no POSIX shell available")
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.bin = Path(self._tmp.name) / "bin"
+        self.bin.mkdir()
+        self.home = Path(self._tmp.name) / "home"
+        self.real = Path(sys.executable).as_posix()
+
+    def fake(self, name: str, body: str) -> None:
+        path = self.bin / name
+        # Bytes, not text: a CRLF shebang line would not run under sh.
+        path.write_bytes(body.encode("utf-8"))
+        path.chmod(0o755)
+
+    def real_python(self, name: str, *, drop_flag: str = "") -> None:
+        shift = f'[ "$1" = {drop_flag} ] && shift\n' if drop_flag else ""
+        self.fake(name, f'#!/bin/sh\n{shift}exec "{self.real}" "$@"\n')
+
+    def run_every_hook(self, windows: bool) -> None:
+        hooks = load("hooks/hooks.json")["hooks"]
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in ("OS", "PLUGIN_ROOT", "STYLELATCH_ROOT")
+        }
+        env.update(
+            {
+                "PATH": str(self.bin),
+                "CLAUDE_PLUGIN_ROOT": str(ROOT),
+                "STYLELATCH_HOME": str(self.home),
+                "PYTHONIOENCODING": "utf-8",
+            }
+        )
+        if windows:
+            env["OS"] = "Windows_NT"
+        for event in ("SessionStart", "UserPromptSubmit", "Stop"):
+            command = hooks[event][0]["hooks"][0]["command"]
+            proc = subprocess.run(
+                [self.shell, "-c", command],
+                input=json.dumps({"prompt": "::status", "session_id": "s1"}),
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+            self.assertEqual(proc.returncode, 0, f"{event}: {proc.stderr}")
+            self.assertTrue(json.loads(proc.stdout)["continue"], event)
+
+    def test_a_posix_host_runs_python3(self) -> None:
+        self.real_python("python3")
+        self.run_every_hook(windows=False)
+
+    def test_windows_prefers_the_launcher_over_the_store_alias(self) -> None:
+        self.fake("python3", self.STUB)
+        self.fake("python", self.STUB)
+        self.real_python("py", drop_flag="-3")
+        self.run_every_hook(windows=True)
+
+    def test_windows_without_the_launcher_falls_back_to_python(self) -> None:
+        self.fake("python3", self.STUB)
+        self.real_python("python")
+        self.run_every_hook(windows=True)
 
 
 class TestReleaseConsistency(unittest.TestCase):

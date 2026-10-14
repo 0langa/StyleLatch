@@ -37,7 +37,11 @@ blocker, or an unauthorized destructive action.
 `::test` reviews every style file it can see for language that reads like an
 instruction about *conduct* rather than *prose* — skipping a confirmation,
 reporting a pass that did not happen, overriding the operator's instructions,
-relaxing a safety rule. Latching such a style prints the same warning.
+relaxing a safety rule. Latching such a style prints the same warning. It
+reads the nudge as well as the body, because the nudge is injected on every
+turn. A negation sitting right on the phrase is the boundary restated, not
+crossed: *never skip the confirmation* passes, *don't hesitate to skip the
+confirmation* does not.
 
 Two things it deliberately is not:
 

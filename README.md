@@ -209,10 +209,12 @@ StyleLatch self-test
         4 profiles, 4 modifiers
   PASS  every style composes
   PASS  hook scripts and registration
-        registered: SessionStart, UserPromptSubmit
+        registered: SessionStart, Stop, UserPromptSubmit
   PASS  injection budget
         layer 2    863 chars  ~216 tokens  (cap 6000)
         layer 3    117 chars   ~29 tokens  (cap 300)
+  PASS  styles govern prose, not permissions
+        nothing reads like it is governing conduct
 
   plugin root   C:\Users\you\.claude\plugins\cache\...\0.1.0
                 installed snapshot -- edits to the repo need a plugin update
@@ -254,19 +256,18 @@ reached the model, and there is nothing left to argue about.
 ```
 styles/PROFILES/       the built-in voices
 styles/MODIFIERS/      single rules that stack onto a voice
-hooks/hooks.json       layer 2 + layer 3 registration
+hooks/hooks.json       layer 2, 3 and 4 registration
 hooks/scripts/         the model, the directives, the diagnostics, and three hook entrypoints
 skills/stylelatch/     the skill both providers auto-discover
 commands/styles.md    the Claude Code slash command
 AGENTS_SNIPPET.md      the one line for layer 1
 docs/                  architecture, style authoring, provider matrix
 tests/                 stdlib unittest, no pytest needed
-.ai/official-docs-cache/   dated evidence for every provider claim made here
 ```
 
 ## Documentation
 
-- [docs/architecture.md](docs/architecture.md) — why three layers, how state and
+- [docs/architecture.md](docs/architecture.md) — why four layers, how state and
   scopes work, and why every hook fails open.
 - [docs/authoring-styles.md](docs/authoring-styles.md) — writing a style that is
   still obeyed on reply twenty.
@@ -281,7 +282,15 @@ tests/                 stdlib unittest, no pytest needed
 
 1. `$STYLELATCH_HOME` — explicit override, always wins
 2. `$PLUGIN_DATA/stylelatch` — Codex hands plugins a writable data dir
-3. `~/.stylelatch` — default
+3. `$CLAUDE_PLUGIN_DATA/stylelatch` — Claude Code's equivalent,
+   `~/.claude/plugins/data/<plugin>-<marketplace>/`
+4. `~/.stylelatch` — default
+
+Both hosts set their data directory for hooks, so under a plugin install the
+state, and the user style directory with it, lives there. `::status` prints
+the exact path. Claude Code deletes that directory when the plugin is
+uninstalled, so keep styles you care about somewhere you control, or set
+`STYLELATCH_HOME`.
 
 `state.json` holds the scoped latches, which are the truth. `ACTIVE.md` is a
 *mirror* of whichever latch currently wins, refreshed by the hooks — it exists
@@ -361,9 +370,6 @@ python -m unittest discover -s tests -v
 ```
 
 They run against a temp directory, never your real `~/.stylelatch`.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
-[ROADMAP.md](ROADMAP.md) for where this is going.
 
 ## License
 

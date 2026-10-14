@@ -29,82 +29,121 @@ from __future__ import annotations
 import re
 
 # Grouped by what the instruction would defeat if the model obeyed it.
-_PATTERNS: tuple[tuple[str, str, str], ...] = (
-    # (group, regex, what it would defeat)
+#
+# The last field is how many words may stand between a negation and the
+# phrase for the negation to still be the phrase's own: "never skip the
+# confirmation" restates the boundary rather than crossing it, and a style is
+# allowed to say so. Zero means the negation has to sit right on the phrase,
+# so "don't hesitate to skip the confirmation" still trips. "Without asking"
+# hangs off a verb, so "never delete anything without asking first" needs
+# two. None means a negation in front says nothing about the phrase, because
+# the phrase carries its own.
+_PATTERNS: tuple[tuple[str, str, str, int | None], ...] = (
+    # (group, regex, what it would defeat, negation gap)
     (
         "permission",
         r"without asking (?:for permission|the user|first)",
         "acting before the user has approved it",
+        2,
     ),
     (
         "permission",
         r"(?:do not|don't|never) ask (?:for )?(?:permission|approval|confirmation)",
         "the confirmation a risky action requires",
+        None,
     ),
     (
         "permission",
         r"skip (?:the |any )?(?:confirmation|approval|permission)",
         "the confirmation a risky action requires",
+        0,
     ),
     (
         "permission",
         r"assume (?:approval|permission|consent)",
         "the confirmation a risky action requires",
+        0,
     ),
     (
         "honesty",
         r"(?:say|claim|report) (?:it|that it|the tests?) (?:passed|works?|succeeded)",
         "an honest report of what was actually verified",
+        0,
     ),
     (
         "honesty",
         r"(?:do not|don't|never) (?:mention|report|surface|show) "
         r"(?:the |any )?(?:error|failure|problem)",
         "the user finding out something went wrong",
+        None,
     ),
     (
         "honesty",
         r"(?:hide|conceal|suppress) (?:the |any )?(?:error|failure|mistake)",
         "the user finding out something went wrong",
+        0,
     ),
     (
         "honesty",
         r"pretend (?:it|that it|everything) (?:worked|passed|is fine)",
         "an honest report of what was actually verified",
+        0,
     ),
     (
         "identity",
         r"ignore (?:all )?(?:previous|prior|earlier) instructions",
         "the instructions the user and the host actually gave",
+        0,
     ),
     (
         "identity",
         r"(?:ignore|disregard|override) (?:your |the )?(?:system prompt|operator instructions)",
         "the instructions the user and the host actually gave",
+        0,
     ),
     (
         "identity",
         r"you are not (?:claude|an assistant|an ai)",
         "the model being honest about what it is",
+        None,
     ),
     (
         "safety",
         r"(?:ignore|bypass|disable|relax) (?:the )?safety",
         "the safety rules, which a style may never touch",
+        0,
     ),
 )
 
 _COMPILED = tuple(
-    (group, re.compile(pattern, re.IGNORECASE), why) for group, pattern, why in _PATTERNS
+    # A leading word boundary, so "chide the error" is not "hide the error".
+    (group, re.compile(rf"\b(?:{pattern})", re.IGNORECASE), why, gap)
+    for group, pattern, why, gap in _PATTERNS
 )
+
+# "don't", "can't", "won't", and the same with a typographic apostrophe.
+_NEGATION = r"\b(?:never|not|cannot|\w+n['\u2019]t)(?:,?\s+ever,?)?\s+"
+# Where a clause starts. A negation in an earlier sentence is not this one's.
+_CLAUSE_BREAK = re.compile(r"[.!?;:\n]")
+
+
+def _negated(text: str, start: int, gap: int | None) -> bool:
+    """Whether a negation sits on the phrase that starts at `start`."""
+    if gap is None:
+        return False
+    clause = _CLAUSE_BREAK.split(text[:start])[-1]
+    return re.search(rf"{_NEGATION}(?:\w+\s+){{0,{gap}}}$", clause, re.IGNORECASE) is not None
 
 
 def review(text: str) -> list[str]:
     """Return one line per concern found in a style body. Empty is the norm."""
+    text = text or ""
     found: list[str] = []
     seen: set[str] = set()
-    for group, pattern, why in _COMPILED:
-        match = pattern.search(text or "")
+    for group, pattern, why, gap in _COMPILED:
+        match = next(
+            (m for m in pattern.finditer(text) if not _negated(text, m.start(), gap)), None
+        )
         if not match:
             continue
         quoted = " ".join(match.group().split())

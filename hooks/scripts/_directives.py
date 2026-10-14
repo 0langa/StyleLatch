@@ -390,27 +390,28 @@ def apply(token: str, rest: str, payload: dict[str, Any]) -> str:
     _style.set_latch(scope, parts[0], parts[1:])
     _style.sync(force=True)
 
+    # The moment a style is latched is the moment worth saying this. A style
+    # file is executable prose, and one can arrive by cloning a repository.
+    # An outranked latch gets it too: it takes over silently the moment the
+    # more specific latch is cleared.
+    warning = _guard.notice(result.get("concerns") or [])
+    lead = warning + "\n\n" if warning else ""
+
     winner = _style.effective()
     if winner is not None and winner[0] != scope:
         # The latch was stored, but something more specific still decides what
         # the model sees. Saying so beats letting the user wonder why nothing
         # changed -- and the style already in force needs no re-injection.
         return (
-            f"StyleLatch: latched {result['label']} ({result['profile']}) "
+            f"{lead}StyleLatch: latched {result['label']} ({result['profile']}) "
             f"{SCOPE_PHRASE[scope]}." + _shadow_warning(scope) + _only_this(not task)
         )
 
-    summary = f"StyleLatch: latched {result['label']} ({result['profile']})"
+    summary = f"{lead}StyleLatch: latched {result['label']} ({result['profile']})"
     if result["modifiers"]:
         summary += " + " + ", ".join(result["modifiers"])
     if scope != "global":
         summary += f", {SCOPE_PHRASE[scope]}"
-
-    # The moment a style is latched is the moment worth saying this. A style
-    # file is executable prose, and one can arrive by cloning a repository.
-    warning = _guard.notice(result.get("concerns") or [])
-    if warning:
-        summary = warning + "\n\n" + summary
 
     if not task:
         return (

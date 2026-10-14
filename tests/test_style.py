@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest import mock
 
 from _support import ROOT, StyleLatchTestCase, _style
 
@@ -119,6 +120,47 @@ class TestState(StyleLatchTestCase):
         after = _style.load_state()
         self.assertFalse(after["enabled"])
         self.assertEqual(after["debug"], {"turns_left": 3})
+
+
+class TestAtomicWrite(StyleLatchTestCase):
+    """Windows refuses a replace while another process has the target open.
+
+    Another session's hook reading state.json is enough, and with parallel
+    sessions that happens. The reads are short, so the write waits them out
+    instead of failing the hook -- which used to drop a `::terse` silently.
+    """
+
+    def _leftovers(self) -> list[str]:
+        return [p.name for p in _style.state_dir().iterdir() if p.name.endswith(".tmp")]
+
+    def test_a_refused_replace_is_retried(self) -> None:
+        real = _style.Path.replace
+        calls = []
+
+        def busy_twice(source, target):
+            calls.append(target)
+            if len(calls) < 3:
+                raise PermissionError(13, "in use by another process")
+            return real(source, target)
+
+        with mock.patch.object(_style.Path, "replace", autospec=True, side_effect=busy_twice):
+            _style.save_state_raw({"a": 1})
+        self.assertEqual(_style.load_state(), {"a": 1})
+        self.assertEqual(len(calls), 3)
+
+    def test_a_replace_that_never_succeeds_raises_and_cleans_up(self) -> None:
+        busy = mock.patch.object(
+            _style.Path, "replace", side_effect=PermissionError(13, "in use by another process")
+        )
+        no_wait = mock.patch.object(_style.time, "sleep")
+        with busy, no_wait, self.assertRaises(PermissionError):
+            _style.save_state_raw({"a": 1})
+        self.assertEqual(self._leftovers(), [])
+
+    def test_no_temp_file_is_left_behind(self) -> None:
+        _style.save_state_raw({"a": 1})
+        _style.latch("terse", [])
+        self.assertEqual(self._leftovers(), [])
 
 
 class TestHooks(StyleLatchTestCase):
