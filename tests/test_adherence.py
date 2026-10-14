@@ -240,6 +240,30 @@ class TestTheLoop(StyleLatchTestCase):
         self.assertIn("STYLE BREACH", self.context("one", session_id="s1"))
         self.assertNotIn("STYLE BREACH", self.context("two", session_id="s1"))
 
+    def test_a_breach_is_corrected_in_the_session_that_made_it(self) -> None:
+        # Two sessions wearing the same global latch share one record, but
+        # "your last reply broke X" is only true in the session that wrote it.
+        self.context("::terse", session_id="s1")
+        self.stop("Done. Hope that helps.", session_id="s1")
+        self.assertNotIn("STYLE BREACH", self.context("carry on", session_id="s2"))
+        self.assertIn("STYLE BREACH", self.context("carry on", session_id="s1"))
+
+    def test_another_session_s_clean_reply_does_not_swallow_a_breach(self) -> None:
+        self.context("::terse", session_id="s1")
+        self.stop("Done. Hope that helps.", session_id="s1")
+        self.stop("Done.", session_id="s2")
+        self.assertIn("STYLE BREACH", self.context("carry on", session_id="s1"))
+
+    def test_each_session_is_measured_against_its_own_latch(self) -> None:
+        # The flat mirror follows whichever session ran last. Measuring from it
+        # unsynced scored one session's reply against another session's style.
+        self.context("::terse @session", session_id="s1")
+        self.context("hello", session_id="s2")
+        self.stop("Done. Hope that helps.", session_id="s1")
+        recorded = _adherence.recorded()
+        self.assertEqual(len(recorded), 1)
+        self.assertTrue(recorded[0]["broken"])
+
     def test_a_clean_reply_produces_no_correction(self) -> None:
         self.context("::terse", session_id="s1")
         self.stop("Done.")

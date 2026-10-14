@@ -258,7 +258,10 @@ def active_rules() -> tuple[list[tuple[str, str]], list[str]]:
 def record(broken: list[str], label: str) -> None:
     state = _style.load_scoped()
     entries = [e for e in state.get("adherence", []) if isinstance(e, dict)]
-    entries.append({"at": time.time(), "label": label, "broken": broken})
+    entry: dict[str, Any] = {"at": time.time(), "label": label, "broken": broken}
+    if _style.session_key():
+        entry["session"] = _style.session_key()
+    entries.append(entry)
     state["adherence"] = entries[-MAX_RECORDED:]
     _style.save_state_raw(state)
 
@@ -288,6 +291,11 @@ def take_correction() -> str:
     """
     state = _style.load_scoped()
     entries = [e for e in state.get("adherence", []) if isinstance(e, dict)]
+    # Every session wearing the latch writes to one record, but a correction
+    # is only true in the session whose reply broke the rule. An entry with no
+    # session, or a host that sends no session id, matches as it always did.
+    session = _style.session_key()
+    entries = [e for e in entries if not session or e.get("session") in (None, "", session)]
     if not entries:
         return ""
 

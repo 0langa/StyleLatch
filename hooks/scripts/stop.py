@@ -10,7 +10,7 @@ is a record that `::status` reports and that the next turn's nudge turns into
 a correction naming the specific rule that broke.
 
 Costs nothing when the latched style declares no checks, which is the default:
-one state file read and an early return.
+a few small state reads and an early return.
 """
 
 from __future__ import annotations
@@ -42,6 +42,9 @@ def read_payload() -> dict:
 def measure(payload: dict) -> None:
     _style.set_project_hint(payload.get("cwd") or payload.get("workspace"))
     _style.set_session_hint(payload.get("session_id") or payload.get("sessionId"))
+    # The flat mirror describes whichever session ran last. Resolve this
+    # session's own latch first, or its reply is scored against another's.
+    _style.sync(force=False)
 
     rules, _ = _adherence.active_rules()
     if not rules:

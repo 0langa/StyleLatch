@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A style file saved as UTF-8 with a byte order mark, which is what Windows
   PowerShell 5.1 writes, lost its whole frontmatter: no nudge, no checks, and
   the frontmatter injected as part of the body. It parses now.
+- With two sessions open, a breach in one was corrected in the other. Every
+  session wearing a latch writes to one adherence record, and the next prompt
+  in any session took the newest entry. Corrections now go to the session
+  whose reply broke the rule, and the `Stop` hook resolves that session's own
+  latch before measuring instead of trusting whichever session ran last.
 
 ## [0.3.0] - 2026-09-12
 
