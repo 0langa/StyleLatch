@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Markdown file could be recorded as a breach. It now uses the
   `last_assistant_message` field both hosts send, and the transcript fallback
   skips tool calls.
+- `::test canary off` with no canary armed cleared the real global latch while
+  reporting that nothing changed. It now only ever removes the canary.
+- Disarming the canary put back only the latch that had been winning. Arming
+  stands down the session and project latches and takes over the global one,
+  so the other two were lost. Every latch it displaced now comes back, unless
+  a newer one was set while the canary was armed.
 
 ## [0.3.0] - 2026-09-12
 

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import time
 import unittest
+from pathlib import Path
 
 from _support import StyleLatchTestCase, _diagnostics, _style
 
@@ -205,6 +208,49 @@ class TestCanary(StyleLatchTestCase):
             self.assertEqual(_style.effective()[1]["profile"], "canary")
         finally:
             _style.set_session_hint(None)
+
+    def test_clearing_with_nothing_armed_leaves_a_real_latch_alone(self) -> None:
+        # It used to clear the global latch anyway, while saying nothing changed.
+        self.context("::terse")
+        self.assertIn("no canary was armed", _diagnostics.clear_canary())
+        self.assertEqual(_style.effective()[1]["profile"], "terse")
+
+    def test_clearing_twice_keeps_what_the_first_clear_restored(self) -> None:
+        self.context("::terse")
+        _diagnostics.arm_canary()
+        _diagnostics.clear_canary()
+        _diagnostics.clear_canary()
+        self.assertEqual(_style.effective()[1]["profile"], "terse")
+
+    def test_every_latch_it_stood_down_comes_back(self) -> None:
+        # Arming stands down the session and project latches and takes over
+        # the global one. Only the winning latch used to be put back; the
+        # other two were lost.
+        project = tempfile.TemporaryDirectory()
+        self.addCleanup(project.cleanup)
+        os.environ["STYLELATCH_PROJECT"] = str(Path(project.name).resolve())
+        self.addCleanup(os.environ.pop, "STYLELATCH_PROJECT", None)
+        _style.set_session_hint("s1")
+        self.addCleanup(_style.set_session_hint, None)
+
+        _style.set_latch("global", "eli5", ["no-preamble"])
+        _style.set_latch("project", "deep-technical", [])
+        _style.set_latch("session", "terse", [])
+        _diagnostics.arm_canary()
+        self.assertEqual(_style.effective()[1]["profile"], "canary")
+
+        _diagnostics.clear_canary()
+        self.assertEqual(_style.latch_for("session")["profile"], "terse")
+        self.assertEqual(_style.latch_for("project")["profile"], "deep-technical")
+        self.assertEqual(_style.latch_for("global")["profile"], "eli5")
+        self.assertEqual(_style.latch_for("global")["modifiers"], ["no-preamble"])
+
+    def test_a_latch_set_while_armed_is_not_overwritten(self) -> None:
+        self.context("::terse")
+        _diagnostics.arm_canary()
+        self.context("::eli5")
+        _diagnostics.clear_canary()
+        self.assertEqual(_style.effective()[1]["profile"], "eli5")
 
     def test_it_writes_no_files_into_the_plugin(self) -> None:
         before = sorted(p.name for p in _style.profiles_dir().glob("*.md"))

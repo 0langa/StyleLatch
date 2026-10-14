@@ -556,13 +556,25 @@ def arm_canary() -> str:
         _CANARY_FILE.format(doc_token=doc_token, nudge_token=nudge_token), encoding="utf-8"
     )
 
-    if previous is not None and previous[1].get("profile") != CANARY_NAME:
+    if previous is None or previous[1].get("profile") != CANARY_NAME:
+        # Every scope is about to be stood down or taken over, so every latch
+        # in force here is remembered, not only the winning one. Re-arming
+        # keeps the first snapshot, which is the one worth going back to.
+        saved = {}
+        for scope in _style.SCOPES:
+            latch = _style.latch_for(scope)
+            if latch is not None:
+                saved[scope] = {"key": _style.scope_key(scope), "latch": dict(latch)}
         state = _style.load_scoped()
-        state["restore"] = {
-            "scope": previous[0],
-            "profile": previous[1].get("profile"),
-            "modifiers": list(previous[1].get("modifiers") or []),
-        }
+        state["restore"] = {"latches": saved}
+        if previous is not None:
+            state["restore"].update(
+                {
+                    "scope": previous[0],
+                    "profile": previous[1].get("profile"),
+                    "modifiers": list(previous[1].get("modifiers") or []),
+                }
+            )
         _style.save_state_raw(state)
 
     # A session or project latch would outrank the global canary and make the
@@ -592,34 +604,59 @@ def arm_canary() -> str:
     )
 
 
+def _saved_latches(restore: Any) -> dict[str, dict[str, Any]]:
+    """The latches arm_canary() remembered, as {scope: {"key", "latch"}}."""
+    if not isinstance(restore, dict):
+        return {}
+    if isinstance(restore.get("latches"), dict):
+        return {
+            scope: saved
+            for scope, saved in restore["latches"].items()
+            if scope in _style.SCOPES
+            and isinstance(saved, dict)
+            and saved.get("key")
+            and isinstance(saved.get("latch"), dict)
+        }
+    # A snapshot written before every scope was remembered: the winner only.
+    scope = restore.get("scope", "global")
+    key = _style.scope_key(scope) if scope in _style.SCOPES else ""
+    if not restore.get("profile") or not key:
+        return {}
+    latch = {
+        "profile": restore["profile"],
+        "modifiers": list(restore.get("modifiers") or []),
+        "at": time.time(),
+    }
+    return {scope: {"key": key, "latch": latch}}
+
+
 def clear_canary() -> str:
-    """Remove the canary style and restore the latch it displaced."""
+    """Remove the canary style and put back every latch it displaced."""
     path = canary_path()
     existed = path.is_file()
     if existed:
         path.unlink()
 
+    # Only ever stand the canary itself down. With nothing armed, a real
+    # global latch is the user's own and stays exactly where it is.
+    current = _style.latch_for("global")
+    if current is not None and current.get("profile") == CANARY_NAME:
+        _style.clear_latch("global")
+
     state = _style.load_scoped()
-    restore = state.pop("restore", None)
+    restored = []
+    for scope, saved in _saved_latches(state.pop("restore", None)).items():
+        bucket = state["latches"].setdefault(scope, {})
+        # A latch set while the canary was armed is newer than the snapshot.
+        if saved["key"] in bucket:
+            continue
+        bucket[saved["key"]] = saved["latch"]
+        restored.append(f"{_recipe(saved['latch'])} ({scope})")
     _style.save_state_raw(state)
-
-    _style.clear_latch("global")
-    if isinstance(restore, dict) and restore.get("profile"):
-        try:
-            _style.latch(
-                restore["profile"],
-                list(restore.get("modifiers") or []),
-                scope=restore.get("scope", "global"),
-            )
-        except (KeyError, IndexError):
-            restore = None
-        else:
-            return (
-                f"StyleLatch canary removed. Back to {restore['profile']} "
-                f"({restore.get('scope', 'global')})."
-            )
-
     _style.sync(force=True)
+
+    if restored:
+        return "StyleLatch canary removed. Back to " + ", ".join(restored) + "."
     if not existed:
         return "StyleLatch: no canary was armed. Nothing changed."
     return "StyleLatch canary removed. Nothing is latched now."
