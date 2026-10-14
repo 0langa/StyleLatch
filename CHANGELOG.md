@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Your own styles survive an uninstall.** Under a plugin install the user
+  style directory sat in the host's plugin data directory, which Claude Code
+  deletes when the plugin is uninstalled. User styles now always live in
+  `$STYLELATCH_HOME/styles`, or `~/.stylelatch/styles` when that is not set.
+  Runtime state (the latch, `ACTIVE.md`) stays where it was.
+- Styles already in a plugin data directory are copied to the user directory
+  on first use. Nothing is deleted or overwritten. A file that the user
+  directory already holds with other content is kept aside in
+  `styles-from-plugin-data/` beside it and listed by `::test`. A ledger
+  next to the old styles makes later runs copy only what changed since.
 
 ## [0.3.1] - 2026-10-14
 

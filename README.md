@@ -287,10 +287,16 @@ tests/                 stdlib unittest, no pytest needed
 4. `~/.stylelatch` — default
 
 Both hosts set their data directory for hooks, so under a plugin install the
-state, and the user style directory with it, lives there. `::status` prints
-the exact path. Claude Code deletes that directory when the plugin is
-uninstalled, so keep styles you care about somewhere you control, or set
-`STYLELATCH_HOME`.
+state lives there. `::status` prints the exact path.
+
+**Your own styles do not.** They live in `$STYLELATCH_HOME/styles`, or
+`~/.stylelatch/styles` when that is not set, because Claude Code deletes the
+plugin data directory when the plugin is uninstalled. Up to 0.3.1 the user
+style directory sat in the plugin data directory. On first run, StyleLatch
+copies the styles it finds there into the user directory. It deletes and
+overwrites nothing: when the user directory already holds a different file
+with the same name, the old one goes to `styles-from-plugin-data/` beside the
+user style directory instead, and `::test` lists it.
 
 `state.json` holds the scoped latches, which are the truth. `ACTIVE.md` is a
 *mirror* of whichever latch currently wins, refreshed by the hooks — it exists
@@ -309,7 +315,7 @@ Styles come from three places, most specific first:
 | Source | Where | For |
 |---|---|---|
 | project | `<repo>/.stylelatch/styles/` | The voice a repository agreed on. Commit it. |
-| user | `$STYLELATCH_HOME/styles/` | Yours. Survives every plugin update. |
+| user | `$STYLELATCH_HOME/styles/`, usually `~/.stylelatch/styles/` | Yours. Survives every plugin update and uninstall. |
 | built-in | `<plugin>/styles/` | Ships with StyleLatch. Replaced on update. |
 
 First source wins on a name or id collision, so putting an `eli5.md` in your
