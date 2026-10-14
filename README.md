@@ -17,7 +17,7 @@ restart: the switch happens inside a hook that was going to fire anyway.
 It also ships a skill, so an agent can help you write a style of your own
 rather than only wear one.
 
-Status: v0.3.0.
+Status: v0.3.1.
 
 ---
 

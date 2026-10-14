@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.1] - 2026-10-14
+
+### Upgrading
+
+- **Codex users must trust the hooks again.** All three hook commands changed,
+  and Codex skips a new or changed hook until it is trusted. After updating,
+  run `/hooks` and trust StyleLatch's hooks. Until you do, they do not run at
+  all.
+- **Claude Code on Windows** needs two things for the hooks to run: Git for
+  Windows, because Claude Code runs hooks through Git Bash, and a Python 3
+  that starts as `py -3` or `python`. The Microsoft Store alias does not
+  count.
+
 ### Added
 
 - A guard that reviews every style for language governing *conduct* rather
@@ -194,7 +209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diagnostics: a two-token canary, and a session-log scanner that proves
   injection from the host's own transcript rather than the model's testimony.
 
-[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/0langa/StyleLatch/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/0langa/StyleLatch/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/0langa/StyleLatch/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/0langa/StyleLatch/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/0langa/StyleLatch/compare/v0.1.0...v0.2.0
