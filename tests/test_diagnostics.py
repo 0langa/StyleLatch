@@ -252,6 +252,48 @@ class TestCanary(StyleLatchTestCase):
         _diagnostics.clear_canary()
         self.assertEqual(_style.effective()[1]["profile"], "eli5")
 
+    def test_re_arming_under_a_newer_latch_keeps_the_original(self) -> None:
+        # "Re-arm before every test." A latch set while armed outranks the
+        # global canary, and re-arming used to take a fresh snapshot then: the
+        # canary was remembered as the global latch to go back to, so
+        # disarming latched a style whose file it had just deleted, and the
+        # user's real global latch was gone.
+        _style.set_session_hint("s1")
+        self.addCleanup(_style.set_session_hint, None)
+        _style.set_latch("global", "eli5", [])
+        _diagnostics.arm_canary()
+        _style.set_latch("session", "terse", [])
+        _diagnostics.arm_canary()
+
+        report = _diagnostics.clear_canary()
+        self.assertNotIn("canary (global)", report)
+        self.assertEqual(_style.latch_for("global")["profile"], "eli5")
+        self.assertEqual(_style.latch_for("session")["profile"], "terse")
+
+    def test_re_arming_from_another_project_keeps_both_project_latches(self) -> None:
+        # The snapshot holds one entry per latch, not one per scope, so a
+        # re-arm in a second repository cannot overwrite what the first stood down.
+        first, second = tempfile.TemporaryDirectory(), tempfile.TemporaryDirectory()
+        self.addCleanup(first.cleanup)
+        self.addCleanup(second.cleanup)
+        self.addCleanup(os.environ.pop, "STYLELATCH_PROJECT", None)
+
+        def work_in(project: tempfile.TemporaryDirectory) -> None:
+            os.environ["STYLELATCH_PROJECT"] = str(Path(project.name).resolve())
+
+        work_in(first)
+        _style.set_latch("project", "terse", [])
+        _diagnostics.arm_canary()
+        work_in(second)
+        _style.set_latch("project", "eli5", [])
+        _diagnostics.arm_canary()
+        _diagnostics.clear_canary()
+
+        self.assertIsNone(_style.latch_for("global"))
+        self.assertEqual(_style.latch_for("project")["profile"], "eli5")
+        work_in(first)
+        self.assertEqual(_style.latch_for("project")["profile"], "terse")
+
     def test_it_writes_no_files_into_the_plugin(self) -> None:
         before = sorted(p.name for p in _style.profiles_dir().glob("*.md"))
         _diagnostics.arm_canary()

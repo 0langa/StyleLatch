@@ -37,8 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reporting that nothing changed. It now only ever removes the canary.
 - Disarming the canary put back only the latch that had been winning. Arming
   stands down the session and project latches and takes over the global one,
-  so the other two were lost. Every latch it displaced now comes back, unless
-  a newer one was set while the canary was armed.
+  so the other two were lost, and re-arming while a more specific latch won
+  replaced the snapshot and lost the original global latch too. Every latch it
+  displaced now comes back, re-arm or not, unless a newer one was set while the
+  canary was armed.
 - The conduct guard never read a style's `nudge`, which is the one part
   injected on every turn. It reads it now.
 - The conduct guard flagged styles that restate the boundary, such as *never

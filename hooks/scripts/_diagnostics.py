@@ -556,26 +556,34 @@ def arm_canary() -> str:
         _CANARY_FILE.format(doc_token=doc_token, nudge_token=nudge_token), encoding="utf-8"
     )
 
-    if previous is None or previous[1].get("profile") != CANARY_NAME:
-        # Every scope is about to be stood down or taken over, so every latch
-        # in force here is remembered, not only the winning one. Re-arming
-        # keeps the first snapshot, which is the one worth going back to.
-        saved = {}
-        for scope in _style.SCOPES:
-            latch = _style.latch_for(scope)
-            if latch is not None:
-                saved[scope] = {"key": _style.scope_key(scope), "latch": dict(latch)}
-        state = _style.load_scoped()
-        state["restore"] = {"latches": saved}
-        if previous is not None:
-            state["restore"].update(
-                {
-                    "scope": previous[0],
-                    "profile": previous[1].get("profile"),
-                    "modifiers": list(previous[1].get("modifiers") or []),
-                }
-            )
-        _style.save_state_raw(state)
+    # Every scope is about to be stood down or taken over, so every latch in
+    # force here is remembered, not only the winning one. A re-arm adds to the
+    # snapshot instead of starting a new one: by then the global latch is the
+    # canary itself, which is never something to go back to, and the latch it
+    # displaced exists only in the snapshot. A latch set while armed replaces
+    # the remembered one for its own slot, because it is newer.
+    state = _style.load_scoped()
+    restore = state.get("restore")
+    restore = restore if isinstance(restore, dict) else {}
+    saved = {(scope, key): latch for scope, key, latch in _saved_latches(restore)}
+    for scope in _style.SCOPES:
+        latch = _style.latch_for(scope)
+        if latch is not None and latch.get("profile") != CANARY_NAME:
+            saved[(scope, _style.scope_key(scope))] = dict(latch)
+    restore["latches"] = [
+        {"scope": scope, "key": key, "latch": latch} for (scope, key), latch in saved.items()
+    ]
+    # The latch that was winning, in the one-latch shape 0.3.0 reads back.
+    if not restore.get("profile") and previous and previous[1].get("profile") != CANARY_NAME:
+        restore.update(
+            {
+                "scope": previous[0],
+                "profile": previous[1].get("profile"),
+                "modifiers": list(previous[1].get("modifiers") or []),
+            }
+        )
+    state["restore"] = restore
+    _style.save_state_raw(state)
 
     # A session or project latch would outrank the global canary and make the
     # test measure the wrong thing, so they are stood down for the duration.
@@ -604,30 +612,39 @@ def arm_canary() -> str:
     )
 
 
-def _saved_latches(restore: Any) -> dict[str, dict[str, Any]]:
-    """The latches arm_canary() remembered, as {scope: {"key", "latch"}}."""
+def _saved_latches(restore: Any) -> list[tuple[str, str, dict[str, Any]]]:
+    """The latches arm_canary() remembered, as (scope, key, latch) triples.
+
+    Never the canary itself: that is the one latch disarming takes away.
+    """
     if not isinstance(restore, dict):
-        return {}
-    if isinstance(restore.get("latches"), dict):
-        return {
-            scope: saved
-            for scope, saved in restore["latches"].items()
-            if scope in _style.SCOPES
-            and isinstance(saved, dict)
-            and saved.get("key")
-            and isinstance(saved.get("latch"), dict)
+        return []
+    if isinstance(restore.get("latches"), list):
+        entries = [
+            (entry.get("scope"), entry.get("key"), entry.get("latch"))
+            for entry in restore["latches"]
+            if isinstance(entry, dict)
+        ]
+    else:
+        # A snapshot written before every latch was remembered: the winner only.
+        scope = restore.get("scope", "global")
+        key = _style.scope_key(scope) if scope in _style.SCOPES else ""
+        latch = {
+            "profile": restore.get("profile"),
+            "modifiers": list(restore.get("modifiers") or []),
+            "at": time.time(),
         }
-    # A snapshot written before every scope was remembered: the winner only.
-    scope = restore.get("scope", "global")
-    key = _style.scope_key(scope) if scope in _style.SCOPES else ""
-    if not restore.get("profile") or not key:
-        return {}
-    latch = {
-        "profile": restore["profile"],
-        "modifiers": list(restore.get("modifiers") or []),
-        "at": time.time(),
-    }
-    return {scope: {"key": key, "latch": latch}}
+        entries = [(scope, key, latch)]
+    return [
+        (scope, key, latch)
+        for scope, key, latch in entries
+        if scope in _style.SCOPES
+        and isinstance(key, str)
+        and key
+        and isinstance(latch, dict)
+        and latch.get("profile")
+        and latch.get("profile") != CANARY_NAME
+    ]
 
 
 def clear_canary() -> str:
@@ -645,13 +662,13 @@ def clear_canary() -> str:
 
     state = _style.load_scoped()
     restored = []
-    for scope, saved in _saved_latches(state.pop("restore", None)).items():
+    for scope, key, latch in _saved_latches(state.pop("restore", None)):
         bucket = state["latches"].setdefault(scope, {})
         # A latch set while the canary was armed is newer than the snapshot.
-        if saved["key"] in bucket:
+        if key in bucket:
             continue
-        bucket[saved["key"]] = saved["latch"]
-        restored.append(f"{_recipe(saved['latch'])} ({scope})")
+        bucket[key] = latch
+        restored.append(f"{_recipe(latch)} ({scope})")
     _style.save_state_raw(state)
     _style.sync(force=True)
 
