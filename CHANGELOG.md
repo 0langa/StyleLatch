@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or *never hide errors*, and matched inside words (*chide the error*). A
   negation sitting right on the phrase now clears it; one on another verb, as
   in *don't hesitate to skip the confirmation*, still does not.
+- A style file saved as UTF-8 with a byte order mark, which is what Windows
+  PowerShell 5.1 writes, lost its whole frontmatter: no nudge, no checks, and
+  the frontmatter injected as part of the body. It parses now.
 
 ## [0.3.0] - 2026-09-12
 

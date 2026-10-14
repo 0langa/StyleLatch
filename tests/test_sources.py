@@ -156,6 +156,18 @@ class TestDiscovery(SourceTestCase):
         # The built-ins must still resolve.
         self.assertIn("eli5", _style.profiles())
 
+    def test_a_byte_order_mark_does_not_hide_the_frontmatter(self) -> None:
+        # Windows PowerShell 5.1 writes UTF-8 with a BOM (Set-Content -Encoding
+        # UTF8). The frontmatter must still parse, or the nudge and checks are
+        # silently lost and the frontmatter itself lands in the injected body.
+        path = write_style(
+            self.user_styles, "PROFILES", id="71", name="bommed", nudge="Short.", body="Body."
+        )
+        path.write_bytes(path.read_text(encoding="utf-8").encode("utf-8-sig"))
+        entry = _style.profiles()["bommed"]
+        self.assertEqual(entry["nudge"], "Short.")
+        self.assertEqual(entry["body"], "Body.")
+
 
 class TestShadowing(SourceTestCase):
     def _override_eli5(self, root: Path, marker: str) -> None:

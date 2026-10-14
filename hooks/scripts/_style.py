@@ -193,7 +193,8 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def _read(path: Path) -> tuple[dict[str, str], str]:
-    return parse_frontmatter(path.read_text(encoding="utf-8"))
+    # utf-8-sig: Windows PowerShell 5.1 writes "UTF8" with a byte order mark.
+    return parse_frontmatter(path.read_text(encoding="utf-8-sig"))
 
 
 def _read_dir(directory: Path, source: str) -> list[dict[str, Any]]:
