@@ -87,6 +87,15 @@ that directory wholesale. Resolution order:
    providers' own writable per-plugin directory
 3. `~/.stylelatch`
 
+The user's own styles are not state. They live in `$STYLELATCH_HOME/styles` or
+`~/.stylelatch/styles`, never in a plugin data directory, because Claude Code
+deletes that directory on uninstall. Styles that 0.3.1 and earlier kept there
+are copied to the user directory on first use. Nothing is overwritten: a name
+the user directory already holds with other content is kept aside in
+`styles-from-plugin-data/`. A ledger next to the old styles, `styles-moved.json`,
+records each copied file and its hash, so a later run copies only files that
+changed since.
+
 `state.json` is versioned and migrates itself forward on read. It holds:
 
 ```json

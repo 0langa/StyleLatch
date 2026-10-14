@@ -1,9 +1,10 @@
 """Shared fixtures.
 
 Every test points STYLELATCH_HOME at a temporary directory, so a test run
-never reads or writes the real state at ~/.stylelatch. Every subprocess also
-gets STYLELATCH_ROOT, so a hook run out of process resolves the same styles
-the in-process tests do.
+never reads or writes the real state at ~/.stylelatch, and drops the hosts'
+plugin data variables, so a run inside a host never touches its data either.
+Every subprocess also gets STYLELATCH_ROOT, so a hook run out of process
+resolves the same styles the in-process tests do.
 """
 
 from __future__ import annotations
@@ -39,18 +40,25 @@ __all__ = [
 ]
 
 
+# Restored after every test, whatever the test did with them.
+ISOLATED_VARIABLES = ("STYLELATCH_HOME", "PLUGIN_DATA", "CLAUDE_PLUGIN_DATA", "HOME", "USERPROFILE")
+
+
 class StyleLatchTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self._saved = os.environ.get("STYLELATCH_HOME")
+        self._saved = {name: os.environ.get(name) for name in ISOLATED_VARIABLES}
         os.environ["STYLELATCH_HOME"] = self._tmp.name
+        os.environ.pop("PLUGIN_DATA", None)
+        os.environ.pop("CLAUDE_PLUGIN_DATA", None)
         importlib.reload(_style)
 
     def tearDown(self) -> None:
-        if self._saved is None:
-            os.environ.pop("STYLELATCH_HOME", None)
-        else:
-            os.environ["STYLELATCH_HOME"] = self._saved
+        for name, value in self._saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
         self._tmp.cleanup()
 
     # -- running a hook the way a provider would ---------------------------

@@ -13,14 +13,20 @@ user's active style. Resolution order:
 Both providers document a writable per-plugin data directory that survives a
 plugin update, and Codex sets the CLAUDE_ names as aliases for the PLUGIN_
 ones, so checking both costs nothing and covers either host.
+
+The user's own styles are different: they live in $STYLELATCH_HOME or
+~/.stylelatch and never in a plugin data directory, because Claude Code
+deletes that directory when the plugin is uninstalled.
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -63,6 +69,23 @@ def state_dir() -> Path:
         if value and value.strip():
             return (Path(value).expanduser() / "stylelatch").resolve()
     return (Path.home() / ".stylelatch").resolve()
+
+
+def user_dir() -> Path:
+    """The persistent home of the user's own styles.
+
+    $STYLELATCH_HOME, else ~/.stylelatch. Never a host's plugin data
+    directory: Claude Code deletes that when the plugin is uninstalled, and
+    every style in it would go with it.
+    """
+    explicit = os.environ.get("STYLELATCH_HOME")
+    if explicit and explicit.strip():
+        return Path(explicit).expanduser().resolve()
+    return (Path.home() / ".stylelatch").resolve()
+
+
+def user_styles_dir() -> Path:
+    return user_dir() / "styles"
 
 
 def active_path() -> Path:
@@ -142,11 +165,12 @@ def project_root() -> Path | None:
 
 def style_roots() -> list[tuple[str, Path]]:
     """(label, directory) pairs in precedence order, most specific first."""
+    move_plugin_data_styles()
     roots: list[tuple[str, Path]] = []
     project = project_root()
     if project is not None:
         roots.append(("project", project / PROJECT_DIRNAME / "styles"))
-    roots.append(("user", state_dir() / "styles"))
+    roots.append(("user", user_styles_dir()))
     roots.append(("built-in", plugin_root() / "styles"))
 
     # A project whose own directory is the plugin checkout would otherwise
@@ -159,6 +183,136 @@ def style_roots() -> list[tuple[str, Path]]:
         seen.add(path)
         unique_roots.append((label, path))
     return unique_roots
+
+
+# --------------------------------------------------------------------------
+# styles that 0.3.1 and earlier kept in a plugin data directory
+# --------------------------------------------------------------------------
+#
+# The user style directory used to sit under the state directory, which a
+# plugin install puts in the host's plugin data directory. Claude Code deletes
+# that directory on uninstall, so those styles are copied to user_styles_dir().
+# Nothing is deleted or overwritten: a file that the user directory already
+# holds with other content is kept aside, and a ledger beside the old styles
+# records what was copied, so a later run copies only what changed since.
+
+MOVED_LEDGER = "styles-moved.json"
+KEPT_ASIDE_DIRNAME = "styles-from-plugin-data"
+
+_moved_this_process = False
+
+
+def plugin_data_style_dirs() -> list[Path]:
+    """The style directory under each plugin data directory this hook was given."""
+    found: list[Path] = []
+    for var in ("PLUGIN_DATA", "CLAUDE_PLUGIN_DATA"):
+        value = os.environ.get(var)
+        if value and value.strip():
+            path = (Path(value).expanduser() / "stylelatch" / "styles").resolve()
+            if path not in found:
+                found.append(path)
+    return found
+
+
+def move_plugin_data_styles() -> None:
+    """Copy styles out of plugin data directories, once per process. Never raises."""
+    global _moved_this_process
+    if _moved_this_process:
+        return
+    _moved_this_process = True
+    target = user_styles_dir()
+    for source in plugin_data_style_dirs():
+        if source == target or not source.is_dir():
+            continue
+        try:
+            _move_styles(source, target)
+        except (OSError, ValueError):
+            # A hook must never fail over this. The ledger only records files
+            # that were placed, so the next run picks up where this one stopped.
+            continue
+
+
+def _move_styles(source: Path, target: Path) -> None:
+    ledger_path = source.parent / MOVED_LEDGER
+    files = _ledger_files(ledger_path)
+    changed = False
+    try:
+        for path in sorted(p for p in source.rglob("*") if p.is_file()):
+            relative = path.relative_to(source).as_posix()
+            data = path.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()
+            record = files.get(relative)
+            if isinstance(record, dict) and record.get("sha256") == digest:
+                continue  # copied before and unchanged since
+            placed, kept_aside = _place(
+                data, target / relative, target.parent / KEPT_ASIDE_DIRNAME / relative
+            )
+            with contextlib.suppress(OSError):
+                shutil.copystat(path, placed)
+            files[relative] = {
+                "sha256": digest,
+                "to": str(placed),
+                "kept_aside": kept_aside,
+                "at": time.time(),
+            }
+            changed = True
+    finally:
+        if changed:
+            _atomic_write(ledger_path, json.dumps({"version": 1, "files": files}, indent=2) + "\n")
+
+
+def _ledger_files(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    files = data.get("files") if isinstance(data, dict) else None
+    return dict(files) if isinstance(files, dict) else {}
+
+
+def _place(data: bytes, preferred: Path, aside: Path) -> tuple[Path, bool]:
+    """Put data at preferred, or under aside if preferred already holds something else.
+
+    Returns (where it is, whether it was kept aside). Never overwrites a file.
+    """
+    if _write_new(preferred, data) or _holds(preferred, data):
+        return preferred, False
+    candidate = aside
+    number = 1
+    while not (_write_new(candidate, data) or _holds(candidate, data)):
+        number += 1
+        candidate = aside.with_name(f"{aside.stem}.{number}{aside.suffix}")
+    return candidate, True
+
+
+def _write_new(path: Path, data: bytes) -> bool:
+    """Create path with data. False, untouched, if anything is already there."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        return False
+    try:
+        with path.open("xb") as handle:
+            handle.write(data)
+    except FileExistsError:
+        return False
+    return True
+
+
+def _holds(path: Path, data: bytes) -> bool:
+    try:
+        return path.is_file() and path.read_bytes() == data
+    except OSError:
+        return False
+
+
+def moved_styles() -> list[tuple[Path, dict[str, Any]]]:
+    """(old style directory, ledger files) for each one something was copied from."""
+    moved = []
+    for source in plugin_data_style_dirs():
+        files = _ledger_files(source.parent / MOVED_LEDGER)
+        if files:
+            moved.append((source, files))
+    return moved
 
 
 def styles_dir() -> Path:

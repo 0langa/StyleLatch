@@ -250,6 +250,7 @@ def self_test(payload: dict[str, Any] | None = None) -> str:
     for source, path in _style.style_roots():
         mark = "" if path.is_dir() else "   (does not exist yet)"
         lines.append(f"    {source:<9} {path}{mark}")
+    lines += _moved_lines()
     session = _field(payload, "session_id", "sessionId")
     if session:
         lines.append(f"  session       {session}")
@@ -264,6 +265,26 @@ def self_test(payload: dict[str, Any] | None = None) -> str:
             "    3. A style file was edited into something that no longer parses.",
         ]
     return "\n".join(lines)
+
+
+def _moved_lines() -> list[str]:
+    """What was copied out of a plugin data directory, and what was kept aside."""
+    lines = []
+    for source, files in _style.moved_styles():
+        lines += [
+            "",
+            f"  copied {len(files)} style file(s) to the user directory from",
+            f"    {source}",
+        ]
+        aside = [
+            str(record.get("to"))
+            for record in files.values()
+            if isinstance(record, dict) and record.get("kept_aside")
+        ]
+        if aside:
+            lines.append("  kept aside, because the user directory already had a different file:")
+            lines += [f"    {path}" for path in sorted(aside)]
+    return lines
 
 
 # --------------------------------------------------------------------------
@@ -537,7 +558,7 @@ def canary_path() -> Path:
     Not in the plugin's own directory: that is frequently a read-only install
     snapshot, and a test fixture has no business being shipped to anyone.
     """
-    return _style.state_dir() / "styles" / "PROFILES" / "99-canary.md"
+    return _style.user_styles_dir() / "PROFILES" / "99-canary.md"
 
 
 def arm_canary() -> str:

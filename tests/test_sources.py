@@ -39,7 +39,7 @@ class SourceTestCase(StyleLatchTestCase):
         # so an unresolved fixture path would never match its own output.
         self.project = Path(self._project.name).resolve()
         os.environ["STYLELATCH_PROJECT"] = str(self.project)
-        self.user_styles = _style.state_dir() / "styles"
+        self.user_styles = _style.user_styles_dir()
         self.project_styles = self.project / _style.PROJECT_DIRNAME / "styles"
 
     def tearDown(self) -> None:
