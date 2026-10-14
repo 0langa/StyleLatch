@@ -3,6 +3,11 @@
 StyleLatch targets Codex and Claude Code from one set of files. This page
 records what each host actually gives us, and where that was checked.
 
+Checked against the hosts' own documentation:
+[Claude Code hooks](https://code.claude.com/docs/en/hooks),
+[Claude Code plugins reference](https://code.claude.com/docs/en/plugins-reference),
+and [Codex hooks](https://learn.chatgpt.com/docs/hooks). When a claim here and
+the host's documentation disagree, the documentation wins.
 
 ## Capability matrix
 

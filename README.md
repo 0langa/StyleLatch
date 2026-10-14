@@ -261,7 +261,6 @@ commands/styles.md    the Claude Code slash command
 AGENTS_SNIPPET.md      the one line for layer 1
 docs/                  architecture, style authoring, provider matrix
 tests/                 stdlib unittest, no pytest needed
-.ai/official-docs-cache/   dated evidence for every provider claim made here
 ```
 
 ## Documentation
@@ -361,7 +360,6 @@ python -m unittest discover -s tests -v
 ```
 
 They run against a temp directory, never your real `~/.stylelatch`.
-
 
 ## License
 
