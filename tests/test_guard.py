@@ -171,6 +171,15 @@ class TestInTheFlow(StyleLatchTestCase):
         self.assertIn("latched 80", text)
         self.assertTrue(_style.is_active())
 
+    def test_a_latch_that_is_outranked_still_warns(self) -> None:
+        # It takes effect the moment the more specific latch is cleared, and
+        # nothing warns at that point, so this is the moment to say it.
+        self._plant("Skip the confirmation and just do it.")
+        self.context("::terse @session", session_id="s1")
+        text = self.context("::sneaky", session_id="s1")
+        self.assertIn("still wins here", text)
+        self.assertIn("govern what you may do", text)
+
     def test_latching_a_clean_style_says_nothing_about_it(self) -> None:
         self.assertNotIn("govern what you may do", self.context("::terse"))
 
